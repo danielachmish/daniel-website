@@ -49,6 +49,27 @@ npx serve . -l 5500
 - **GitHub Pages**: הפכו את הריפו ל-Pages, ענף `main`, תיקיית root.
 - **כל שרת סטטי אחר** (S3+CloudFront, Nginx וכו').
 
+### פריסה נוכחית — GitHub Pages + דומיין מותאם
+
+האתר חי כרגע ב-GitHub Pages: **https://github.com/danielachmish/daniel-website**, מוגש דרך
+קובץ `CNAME` (בשורש הריפו, מכיל `danielachmish.com`) שמורה ל-GitHub Pages להגיש את הדומיין
+המותאם. שני דברים צריך להשלים אצל ספק הדומיין (הרשם/DNS):
+
+1. **רשומת CNAME לתת-דומיין `www`** (אם רוצים גם `www.danielachmish.com`):
+   `www` → `danielachmish.github.io`
+2. **4 רשומות A לדומיין השורש** (`danielachmish.com` בלי www) שמצביעות לשרתי GitHub Pages:
+   ```
+   185.199.108.153
+   185.199.109.153
+   185.199.110.153
+   185.199.111.153
+   ```
+
+אחרי שה-DNS מתעדכן (יכול לקחת בין כמה דקות למספר שעות) — ב-
+[github.com/danielachmish/daniel-website/settings/pages](https://github.com/danielachmish/daniel-website/settings/pages)
+יופיע אישור ירוק שהדומיין אומת, ואפשר לסמן **Enforce HTTPS** (ייקח עוד קצת זמן עד שהתעודה
+תונפק אוטומטית על ידי GitHub).
+
 לפני פריסה לפרודקשן — **חובה**:
 
 1. למלא ב-`js/config.js` את `CONTACT_EMAIL`, `CONTACT_PHONE` ו-`SOCIAL_LINKS` (`CONTACT_ENDPOINT` כבר מחובר ל-Formspree).
