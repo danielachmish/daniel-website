@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daniel Lachmish | פיתוח מערכות SaaS, מערכות עסקיות ואוטומציות</title>
+<meta name="description" content="Daniel Lachmish — מפתח Full Stack שבונה מערכות SaaS, מערכות עסקיות ואוטומציות לעסקים. פתרונות תוכנה שמחברים בין טכנולוגיה לתוצאות עסקיות.">
+<meta name="keywords" content="פיתוח תוכנה, מערכות SaaS, מערכות עסקיות, אוטומציות, Full Stack Developer, פיתוח אתרים, אינטגרציות">
+<meta name="author" content="Daniel Lachmish">
+<link rel="canonical" href="https://www.daniellachmish.com/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="he_IL">
+<meta property="og:title" content="Daniel Lachmish | פיתוח מערכות SaaS, מערכות עסקיות ואוטומציות">
+<meta property="og:description" content="אני בונה מערכות תוכנה שהופכות תהליכים מורכבים לפשוטים יותר. SaaS, מערכות עסקיות, אתרים ואוטומציות.">
+<meta property="og:image" content="/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://www.daniellachmish.com/">
+<meta property="og:site_name" content="DANIEL">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Daniel Lachmish | SaaS · מערכות עסקיות · אוטומציות">
+<meta name="twitter:description" content="אני בונה מערכות תוכנה שהופכות תהליכים מורכבים לפשוטים יותר.">
+<meta name="twitter:image" content="/assets/og-image.png">
+
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+<noscript><style>.reveal{ opacity: 1 !important; transform: none !important; }</style></noscript>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Daniel Lachmish",
+  "alternateName": "DANIEL",
+  "jobTitle": "Full Stack Developer",
+  "description": "מפתח Full Stack המתמחה בבניית מערכות SaaS, מערכות עסקיות ואוטומציות.",
+  "url": "https://www.daniellachmish.com/",
+  "knowsAbout": ["SaaS", "ASP.NET Core", "React", "Python", "FastAPI", "Node.js", "Java", "Spring Boot", "PostgreSQL", "SQL Server", "MongoDB", "Docker", "REST APIs", "Automation"]
+}
+</script>
+</head>
+<body>
+
+<a href="#main" class="skip-link">דלג לתוכן הראשי</a>
+<div class="bg-glow" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<!-- ======================= HEADER ======================= -->
+<header class="site-header" id="siteHeader">
+  <div class="container header-inner">
+    <a href="#hero" class="logo" aria-label="DANIEL — עמוד הבית">
+      <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <defs>
+          <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3b82f6"/>
+            <stop offset="100%" stop-color="#22d3ee"/>
+          </linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="#121829" stroke="rgba(148,163,184,.25)"/>
+        <path d="M20 14 H33 C42.5 14 50 21.5 50 32 C50 42.5 42.5 50 33 50 H20 V33 H28 V42 H33 C37.5 42 42 38 42 32 C42 26 37.5 22 33 22 H28 V28 H20 Z" fill="url(#lg1)"/>
+      </svg>
+      <span class="logo-text-wrap">
+        <span class="logo-word">DANIEL</span>
+        <span class="logo-sub">SOFTWARE · SAAS · AUTOMATION</span>
+      </span>
+    </a>
+
+    <nav class="main-nav" aria-label="ניווט ראשי">
+      <ul>
+        <li><a href="#hero" data-nav>ראשי</a></li>
+        <li><a href="#what-i-do" data-nav>מה אני עושה</a></li>
+        <li><a href="#projects" data-nav>פרויקטים</a></li>
+        <li><a href="#about" data-nav>עליי</a></li>
+        <li><a href="#process" data-nav>תהליך העבודה</a></li>
+        <li><a href="#contact" data-nav>יצירת קשר</a></li>
+      </ul>
+    </nav>
+
+    <div class="header-actions">
+      <a href="#contact" class="btn btn-primary btn-sm">
+        <span class="cta-long">בואו נדבר על הפרויקט</span><span class="cta-short" aria-hidden="true">דברו איתי</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="פתיחת תפריט ניווט" aria-expanded="false" aria-controls="mobileNav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- mobile nav -->
+<div class="mobile-nav" id="mobileNav">
+  <div class="mobile-nav-panel">
+    <div class="mobile-nav-top">
+      <span class="logo-word">DANIEL</span>
+      <button class="close-btn" id="navClose" aria-label="סגירת תפריט">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <nav aria-label="ניווט מובייל">
+      <ul>
+        <li><a href="#hero" data-nav>ראשי</a></li>
+        <li><a href="#what-i-do" data-nav>מה אני עושה</a></li>
+        <li><a href="#projects" data-nav>פרויקטים</a></li>
+        <li><a href="#about" data-nav>עליי</a></li>
+        <li><a href="#process" data-nav>תהליך העבודה</a></li>
+        <li><a href="#contact" data-nav>יצירת קשר</a></li>
+      </ul>
+    </nav>
+    <a href="#contact" class="btn btn-primary btn-block" id="mobileCta">בואו נדבר על הפרויקט</a>
+  </div>
+</div>
+
+<main id="main">
+
+  <!-- ======================= HERO ======================= -->
+  <section class="hero" id="hero">
+    <div class="container hero-grid">
+      <div class="reveal is-visible">
+        <span class="hero-badge"><span class="dot" aria-hidden="true"></span> פנוי לפרויקטים חדשים</span>
+        <h1>אני בונה מערכות תוכנה שהופכות <span class="grad">תהליכים מורכבים</span> לפשוטים יותר</h1>
+        <p class="hero-sub">פיתוח מערכות SaaS, מערכות עסקיות, אתרים ואוטומציות לעסקים שרוצים לעבוד מהר יותר, חכם יותר ובשליטה מלאה.</p>
+        <div class="hero-cta">
+          <a href="#contact" class="btn btn-primary">בואו נדבר על הפרויקט</a>
+          <a href="#projects" class="btn btn-ghost">לצפייה בפרויקטים</a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><b>SaaS</b><span>מערכות מבוססות מנוי</span></div>
+          <div class="hero-stat"><b>API-First</b><span>ארכיטקטורה מודולרית</span></div>
+          <div class="hero-stat"><b>Automation</b><span>תהליכים ללא עבודה ידנית</span></div>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal is-visible">
+        <div class="dash" role="img" aria-label="הדמיית לוח בקרה של מערכת תוכנה עם נתונים, משתמשים והזמנות">
+          <div class="dash-bar">
+            <span class="dash-dot"></span><span class="dash-dot"></span><span class="dash-dot"></span>
+            <span class="dash-title">SYSTEM · DASHBOARD</span>
+          </div>
+          <div class="dash-body">
+            <div class="dash-card">
+              <div class="dash-kpi-label">הזמנות פעילות</div>
+              <div class="dash-kpi-value">248</div>
+              <div class="dash-kpi-trend">▲ 12% השבוע</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-kpi-label">משתמשים פעילים</div>
+              <div class="dash-kpi-value">1.2K</div>
+              <div class="dash-kpi-trend">▲ 4% השבוע</div>
+            </div>
+            <div class="dash-card span-2">
+              <div class="dash-kpi-label">תהליכים אוטומטיים שבוצעו</div>
+              <div class="dash-chart" aria-hidden="true">
+                <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i>
+                <i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i>
+                <i style="height:60%"></i><i style="height:95%"></i>
+              </div>
+            </div>
+            <div class="dash-card span-2">
+              <div class="dash-row"><span>הזמנה #4021 · לקוח חדש</span><span class="status-pill new">חדש</span></div>
+              <div class="dash-row"><span>חשבונית #1187 · ממתינה לגבייה</span><span class="status-pill wait">ממתין</span></div>
+              <div class="dash-row"><span>סנכרון מלאי · הושלם</span><span class="status-pill ok">הושלם</span></div>
+            </div>
+          </div>
+          <div class="dash-float" aria-hidden="true">
+            <span class="ring"></span>
+            <span>78% אוטומציה בתהליך</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= VALUE ======================= -->
+  <section id="value" class="section-tight">
+    <div class="container value-block reveal">
+      <span class="eyebrow">הגישה שלי</span>
+      <h2>טכנולוגיה שמשרתת את העסק</h2>
+      <p>אני לא בונה רק מערכת שעובדת. אני מבין את התהליך, מזהה את צווארי הבקבוק ובונה פתרון שמצמצם עבודה ידנית, טעויות ובזבוז זמן.</p>
+
+      <div class="principles">
+        <div class="principle">
+          <span class="num">1</span>
+          <h3>להבין את התהליך לפני שכותבים קוד</h3>
+          <p>לפני שורת קוד ראשונה, אני לומד איך העסק עובד בפועל — מי עושה מה, איפה נתקעים ומה חשוב באמת.</p>
+        </div>
+        <div class="principle">
+          <span class="num">2</span>
+          <h3>לבנות מערכת שאפשר להרחיב</h3>
+          <p>ארכיטקטורה מודולרית ונקייה שמאפשרת להוסיף פיצ׳רים, משתמשים ותהליכים בלי לשבור את הקיים.</p>
+        </div>
+        <div class="principle">
+          <span class="num">3</span>
+          <h3>להפוך עבודה ידנית לתהליך חכם</h3>
+          <p>איתור המשימות החוזרות ובנייה אוטומטית שלהן — כדי שהצוות יתפנה לעבודה שבאמת דורשת בן אדם.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= SERVICES ======================= -->
+  <section id="what-i-do">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="eyebrow">מה אני עושה</span>
+        <h2>ארבעה תחומי פיתוח, פתרון אחד לכל בעיה עסקית</h2>
+      </div>
+
+      <div class="services-grid">
+        <article class="service-card reveal">
+          <div class="service-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 4v14"/></svg>
+          </div>
+          <h3>מערכות SaaS</h3>
+          <p>מערכות מבוססות משתמשים, הרשאות, מנויים, תשלומים, דוחות ופאנלי ניהול — בנויות לגדול יחד עם העסק.</p>
+          <div class="service-tags"><span>הרשאות</span><span>מנויים</span><span>Dashboards</span></div>
+        </article>
+
+        <article class="service-card reveal">
+          <div class="service-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg>
+          </div>
+          <h3>מערכות עסקיות</h3>
+          <p>CRM, פורטלים, מערכות הזמנות, ניהול לקוחות, מלאי, תפעול וגבייה — הכל במקום אחד ומחובר.</p>
+          <div class="service-tags"><span>CRM</span><span>מלאי</span><span>גבייה</span></div>
+        </article>
+
+        <article class="service-card reveal">
+          <div class="service-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </div>
+          <h3>אוטומציות ואינטגרציות</h3>
+          <p>חיבור בין מערכות, סנכרון נתונים, הפקת מסמכים, התראות ותהליכים שרצים לבד — בלי עבודה ידנית.</p>
+          <div class="service-tags"><span>APIs</span><span>Webhooks</span><span>סנכרון נתונים</span></div>
+        </article>
+
+        <article class="service-card reveal">
+          <div class="service-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+          </div>
+          <h3>אתרים ופלטפורמות דיגיטליות</h3>
+          <p>אתרי תדמית, אתרי מכירות, אזורי לקוחות ואתרים המחוברים למערכות עסקיות קיימות.</p>
+          <div class="service-tags"><span>אתרי תדמית</span><span>אזורי לקוחות</span><span>SEO</span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= PROCESS ======================= -->
+  <section id="process" class="process">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="eyebrow">תהליך העבודה</span>
+        <h2>ארבעה שלבים, מהבעיה ועד למערכת עובדת</h2>
+      </div>
+
+      <div class="process-steps">
+        <div class="process-step reveal">
+          <span class="step-num">01</span>
+          <h3>הבנת הצורך והתהליך הקיים</h3>
+          <p>שיחת עומק על התהליך העסקי, המערכות הקיימות ונקודות הכאב האמיתיות.</p>
+        </div>
+        <div class="process-step reveal">
+          <span class="step-num">02</span>
+          <h3>אפיון הפתרון</h3>
+          <p>מיפוי המערכת, תרשימי תהליך, הגדרת היקף ובחירת הטכנולוגיה המתאימה.</p>
+        </div>
+        <div class="process-step reveal">
+          <span class="step-num">03</span>
+          <h3>פיתוח, חיבור ואוטומציה</h3>
+          <p>בנייה מודולרית, חיבור למערכות קיימות ואוטומציה של תהליכים חוזרים.</p>
+        </div>
+        <div class="process-step reveal">
+          <span class="step-num">04</span>
+          <h3>בדיקות, השקה ושיפור</h3>
+          <p>בדיקות מקיפות, השקה מבוקרת ושיפור מתמשך לפי שימוש בפועל.</p>
+        </div>
+      </div>
+
+      <p class="process-quote reveal">לא מתחילים <span>מקוד</span>. מתחילים מהבעיה.</p>
+    </div>
+  </section>
+
+  <!-- ======================= PROJECTS ======================= -->
+  <section id="projects">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="eyebrow">פרויקטים</span>
+        <h2>מערכות שנבנו כדי לפתור בעיה עסקית אמיתית</h2>
+        <p>דוגמאות למערכות ופרויקטים שפותחו — ללא נתונים מומצאים.</p>
+      </div>
+
+      <div class="projects-grid" id="projectsGrid">
+        <!-- Project cards injected/duplicated below for progressive enhancement fallback -->
+      </div>
+    </div>
+  </section>
+
+  <!-- project modal -->
+  <div class="modal-overlay" id="projectModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box" style="position:relative;">
+      <button class="modal-close" id="modalClose" aria-label="סגירת חלון">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <span class="project-kicker" id="modalKicker"></span>
+      <h3 id="modalTitle"></h3>
+      <div class="modal-section">
+        <h4>הבעיה</h4>
+        <p id="modalProblem"></p>
+      </div>
+      <div class="modal-section">
+        <h4>מה נבנה</h4>
+        <p id="modalBuilt"></p>
+      </div>
+      <div class="modal-section">
+        <h4>טכנולוגיות</h4>
+        <div class="project-stack" id="modalStack"></div>
+      </div>
+      <div class="modal-section">
+        <a href="#contact" class="btn btn-primary" id="modalCta">בואו נדבר על פרויקט דומה</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= ABOUT ======================= -->
+  <section id="about">
+    <div class="container about-grid">
+      <div class="about-card reveal">
+        <div class="about-avatar" aria-hidden="true">DL</div>
+        <h3>Daniel Lachmish</h3>
+        <div class="about-role">Full Stack Developer · SaaS &amp; Automation</div>
+        <div class="tag-list">
+          <span>C#</span><span>ASP.NET Core</span><span>React</span><span>Python</span>
+          <span>FastAPI</span><span>Node.js</span><span>Java</span><span>Spring Boot</span>
+          <span>PostgreSQL</span><span>SQL Server</span><span>MongoDB</span><span>Docker</span>
+          <span>REST APIs</span><span>הרשאות ואבטחה</span><span>אינטגרציות ואוטומציות</span>
+        </div>
+      </div>
+
+      <div class="about-text reveal">
+        <span class="eyebrow">עליי</span>
+        <h2 style="margin-bottom:18px;">מפתח שמבין תהליכים עסקיים, לא רק קוד</h2>
+        <p>אני Daniel Lachmish, מפתח Full Stack המתמחה בבניית מערכות SaaS, מערכות עסקיות ואוטומציות.</p>
+        <p>אני משלב בין פיתוח תוכנה לבין הבנה מעשית של תהליכים עסקיים, תפעול, מכירות, מלאי, הזמנות, גבייה ושירות.</p>
+        <p>הגישה שלי היא לא רק לבנות מערכת שעובדת, אלא לבנות כלי שמפשט את העבודה, מצמצם טעויות ומאפשר לעסק לגדול.</p>
+
+        <h3 style="margin: 36px 0 18px; font-size:1.15rem;">למה לעבוד איתי</h3>
+        <div class="why-grid">
+          <div class="why-item">
+            <span class="why-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <p>אני מבין את העסק ולא רק את הקוד</p>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <p>אני חושב על תהליך מלא ולא על מסך בודד</p>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <p>אני בונה מערכות שאפשר לתחזק ולהרחיב</p>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <p>אני מתמקד בחיסכון בזמן ובצמצום טעויות</p>
+          </div>
+          <div class="why-item" style="grid-column: 1/-1;">
+            <span class="why-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <p>אני עובד בצורה מסודרת, שקופה ומעשית</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= CONTACT ======================= -->
+  <section id="contact">
+    <div class="container contact-wrap">
+      <div class="contact-intro reveal">
+        <span class="eyebrow">יצירת קשר</span>
+        <h2>יש לכם תהליך מסורבל, מערכת שחסרה או רעיון שצריך להפוך למוצר?</h2>
+        <p>ספרו לי בקצרה מה אתם רוצים לבנות. נחזור אליכם עם כיוון ראשוני ונבדוק יחד איך אפשר להפוך את הרעיון לפתרון עובד.</p>
+
+        <div class="contact-points">
+          <div class="contact-point">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 6 12 13 2 6"/><path d="M2 6h20v12H2z"/></svg>
+            <span id="contactEmailDisplay">כתובת אימייל: <span data-config="CONTACT_EMAIL">CONTACT_EMAIL_PLACEHOLDER</span></span>
+          </div>
+          <div class="contact-point">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13 1 .36 1.98.68 2.93a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.15-1.25a2 2 0 0 1 2.11-.45c.95.32 1.93.55 2.93.68A2 2 0 0 1 22 16.92z"/></svg>
+            <span>טלפון: <span data-config="CONTACT_PHONE">CONTACT_PHONE_PLACEHOLDER</span></span>
+          </div>
+          <div class="contact-point">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span>זמן מענה ממוצע: יום עסקים אחד</span>
+          </div>
+        </div>
+      </div>
+
+      <form class="form-card" id="contactForm" novalidate>
+        <div class="form-grid">
+          <div class="field">
+            <label for="fullName">שם מלא <span class="req">*</span></label>
+            <input type="text" id="fullName" name="fullName" autocomplete="name" required maxlength="100">
+            <span class="field-error" id="err-fullName" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="company">חברה או עסק</label>
+            <input type="text" id="company" name="company" autocomplete="organization" maxlength="100">
+            <span class="field-error" id="err-company" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="email">אימייל <span class="req">*</span></label>
+            <input type="email" id="email" name="email" autocomplete="email" required maxlength="150">
+            <span class="field-error" id="err-email" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="phone">טלפון</label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel" maxlength="20" placeholder="05X-XXXXXXX">
+            <span class="field-error" id="err-phone" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="projectType">סוג הפרויקט <span class="req">*</span></label>
+            <select id="projectType" name="projectType" required>
+              <option value="">בחרו סוג פרויקט</option>
+              <option value="saas">מערכת SaaS</option>
+              <option value="business">מערכת עסקית</option>
+              <option value="website">אתר</option>
+              <option value="automation">אוטומציה</option>
+              <option value="integration">אינטגרציה</option>
+              <option value="other">אחר</option>
+            </select>
+            <span class="field-error" id="err-projectType" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="budget">תקציב משוער (אופציונלי)</label>
+            <select id="budget" name="budget">
+              <option value="">בחרו טווח</option>
+              <option value="lt20k">עד 20,000 ₪</option>
+              <option value="20k-50k">20,000–50,000 ₪</option>
+              <option value="50k-100k">50,000–100,000 ₪</option>
+              <option value="gt100k">מעל 100,000 ₪</option>
+              <option value="unsure">עוד לא יודע/ת</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="message">תיאור הפרויקט <span class="req">*</span></label>
+            <textarea id="message" name="message" required minlength="20" maxlength="2000" placeholder="ספרו לי בקצרה על התהליך הקיים, הבעיה שאתם רוצים לפתור והמטרה של הפרויקט..."></textarea>
+            <span class="field-error" id="err-message" role="alert"></span>
+          </div>
+
+          <!-- honeypot anti-spam field -->
+          <div class="honeypot" aria-hidden="true">
+            <label for="websiteUrl">אל תמלאו שדה זה</label>
+            <input type="text" id="websiteUrl" name="websiteUrl" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="checkbox-field">
+            <input type="checkbox" id="consent" name="consent" required>
+            <label for="consent">אני מאשר/ת יצירת קשר בנוגע לפניה זו, בהתאם למדיניות הפרטיות. <span class="req">*</span></label>
+          </div>
+          <span class="field-error" id="err-consent" role="alert" style="grid-column:1/-1;"></span>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="btn-label">שליחת פנייה</span>
+            </button>
+            <span class="form-status" id="formStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<!-- ======================= FOOTER ======================= -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div>
+        <a href="#hero" class="logo" style="margin-bottom:10px;">
+          <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true" width="32" height="32">
+            <rect width="64" height="64" rx="16" fill="#121829" stroke="rgba(148,163,184,.25)"/>
+            <path d="M20 14 H33 C42.5 14 50 21.5 50 32 C50 42.5 42.5 50 33 50 H20 V33 H28 V42 H33 C37.5 42 42 38 42 32 C42 26 37.5 22 33 22 H28 V28 H20 Z" fill="url(#lg1)"/>
+          </svg>
+          <span class="logo-text-wrap">
+            <span class="logo-word">DANIEL</span>
+            <span class="logo-sub">SOFTWARE · SAAS · AUTOMATION</span>
+          </span>
+        </a>
+        <p style="color:var(--text-muted); font-size:.9rem; max-width: 320px;">פיתוח מערכות SaaS, מערכות עסקיות ואוטומציות לעסקים שרוצים לגדול.</p>
+      </div>
+
+      <nav class="footer-nav" aria-label="ניווט בתחתית העמוד">
+        <a href="#hero">ראשי</a>
+        <a href="#what-i-do">מה אני עושה</a>
+        <a href="#projects">פרויקטים</a>
+        <a href="#about">עליי</a>
+        <a href="#process">תהליך העבודה</a>
+        <a href="#contact">יצירת קשר</a>
+      </nav>
+
+      <div class="footer-social" id="footerSocial" aria-label="קישורים לרשתות חברתיות">
+        <!-- social links injected only if defined in config.js -->
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© <span id="year"></span> DANIEL · כל הזכויות שמורות</span>
+      <a href="/privacy.html">מדיניות פרטיות</a>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="חזרה לראש העמוד">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+
+<script src="/js/config.js"></script>
+<script src="/js/projects-data.js"></script>
+<script src="/js/main.js"></script>
+</body>
+</html>
