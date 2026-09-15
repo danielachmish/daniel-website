@@ -576,7 +576,7 @@ h3{ font-size: 1.3rem; }
   font-size: .72rem; padding: 4px 10px; border-radius: 999px;
   background: rgba(148,163,184,.08); color: var(--text-muted); border: 1px solid var(--border);
 }
-.project-footer{ margin-top: auto; padding-top: 6px; }
+.project-footer{ margin-top: auto; padding-top: 6px; display: flex; flex-wrap: wrap; gap: 10px; }
 
 /* project modal */
 .modal-overlay{

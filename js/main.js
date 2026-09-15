@@ -190,6 +190,7 @@
           '<div class="project-stack">' + p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") + '</div>' +
           '<div class="project-footer">' +
             '<button type="button" class="btn btn-ghost btn-sm project-detail-btn" data-index="' + i + '">לפרטים</button>' +
+            (p.live ? '<a href="' + p.live + '" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">צפייה חיה ↗</a>' : '') +
           '</div>' +
         '</div>' +
       '</article>'
@@ -208,6 +209,7 @@
   var modalProblem = document.getElementById("modalProblem");
   var modalBuilt = document.getElementById("modalBuilt");
   var modalStack = document.getElementById("modalStack");
+  var modalLive = document.getElementById("modalLive");
   var lastFocusedEl = null;
 
   function openModal(index) {
@@ -218,6 +220,12 @@
     modalProblem.textContent = p.problem;
     modalBuilt.textContent = p.built;
     modalStack.innerHTML = p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("");
+    if (p.live) {
+      modalLive.href = p.live;
+      modalLive.hidden = false;
+    } else {
+      modalLive.hidden = true;
+    }
     lastFocusedEl = document.activeElement;
     modal.classList.add("is-open");
     document.body.style.overflow = "hidden";
