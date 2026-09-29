@@ -374,8 +374,11 @@ h3{ font-size: 1.3rem; }
 .hero-grid > div:first-child{ position: relative; z-index: 1; }
 .hero-3d{
   position: absolute;
-  inset: -14% -12%;
+  inset: -8% -6%;
   pointer-events: none;
+  /* Particles fade out softly toward the edges instead of being cut by the canvas border */
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 52%, transparent 76%);
+  mask-image: radial-gradient(ellipse at center, #000 52%, transparent 76%);
   opacity: 0;
   transition: opacity 1.4s var(--ease);
 }
@@ -402,13 +405,16 @@ h3{ font-size: 1.3rem; }
 .hero-3d-ui[hidden]{ display: none; }
 .hero-3d-steps{
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
   gap: 4px;
   margin: 0;
   padding: 5px;
   list-style: none;
   background: rgba(10,14,26,.82);
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: 20px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -450,7 +456,8 @@ h3{ font-size: 1.3rem; }
   /* Compact 3D box (+ room for the caption) so the headline stays above the fold */
   .hero-visual.will-3d{ height: calc(min(78vw, 340px) + 96px); }
   .hero-visual.will-3d .dash{ position: absolute; inset: 0; visibility: hidden; opacity: 0; }
-  .hero-3d-steps li{ padding: 6px 9px; font-size: .8rem; }
+  .hero-3d{ inset: -4% -3%; }
+  .hero-3d-steps li{ gap: 5px; padding: 5px 8px; font-size: .76rem; }
 }
 .dash{
   position: relative;
@@ -756,7 +763,7 @@ h3{ font-size: 1.3rem; }
 }
 .project-card:hover{ transform: translateY(-5px); border-color: var(--border-strong); }
 .project-visual{
-  height: 176px;
+  min-height: 176px;
   position: relative;
   background: linear-gradient(135deg, rgba(59,130,246,.14), rgba(34,211,238,.08));
   border-bottom: 1px solid var(--border);
@@ -767,7 +774,7 @@ h3{ font-size: 1.3rem; }
   background: var(--bg-alt);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  height: 100%;
+  min-height: 144px;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -779,19 +786,6 @@ h3{ font-size: 1.3rem; }
 .project-visual .mini-row{ height: 9px; border-radius: 4px; background: rgba(148,163,184,.14); }
 .project-visual .mini-row.short{ width: 55%; }
 .project-visual .mini-row.accent{ background: linear-gradient(90deg, var(--accent), var(--accent-2)); opacity:.6; width: 35%; }
-
-/* Floating screen: slight 3D tilt that straightens when the card is hovered/focused */
-.project-visual{ perspective: 900px; }
-.project-visual .mini-window{
-  transform: rotateX(8deg) rotateY(-6deg);
-  transition: transform .6s var(--ease), box-shadow .6s var(--ease);
-  box-shadow: 0 22px 34px -22px rgba(0,0,0,.8);
-}
-.project-card:hover .mini-window,
-.project-card:focus-within .mini-window{ transform: none; box-shadow: 0 10px 24px -16px rgba(0,0,0,.6); }
-@media (prefers-reduced-motion: reduce){
-  .project-visual .mini-window{ transform: none; }
-}
 
 /* Per-project illustrative UI */
 .mock-title{ font-size: .74rem; font-weight: 700; color: var(--text-dim); margin-top: 2px; }
