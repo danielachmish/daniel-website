@@ -30,7 +30,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=2">
 <noscript><style>.reveal{ opacity: 1 !important; transform: none !important; }</style></noscript>
 
 <script type="application/ld+json">
@@ -138,6 +138,21 @@
       </div>
 
       <div class="hero-visual reveal is-visible">
+        <div class="hero-3d" aria-hidden="true"></div>
+        <div class="hero-3d-ui" hidden>
+          <ol class="hero-3d-steps" aria-label="מה רואים באנימציה: תהליך שמתארגן">
+            <li data-step><span class="step-dot" aria-hidden="true"></span>נתונים מפוזרים</li>
+            <li data-step><span class="step-dot" aria-hidden="true"></span>סדר ומבנה</li>
+            <li data-step><span class="step-dot" aria-hidden="true"></span>מערכת שעובדת</li>
+          </ol>
+          <button type="button" class="hero-3d-toggle" aria-pressed="false">עצירת אנימציה</button>
+        </div>
+        <script>
+          /* Reserve the 3D layout before first paint (no layout shift). js/3d/hero.js removes it if 3D can't run. */
+          if (window.WebGLRenderingContext && !(navigator.connection && navigator.connection.saveData)) {
+            document.currentScript.parentElement.classList.add("will-3d");
+          }
+        </script>
         <div class="dash" role="img" aria-label="הדמיית לוח בקרה של מערכת תוכנה עם נתונים, משתמשים והזמנות">
           <div class="dash-bar">
             <span class="dash-dot"></span><span class="dash-dot"></span><span class="dash-dot"></span>
@@ -523,8 +538,10 @@
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 
-<script src="js/config.js"></script>
-<script src="js/projects-data.js"></script>
-<script src="js/main.js"></script>
+<!-- ?v= forces browsers to fetch fresh files after each release; bump it when these files change -->
+<script src="js/config.js?v=2"></script>
+<script src="js/projects-data.js?v=2"></script>
+<script src="js/main.js?v=2"></script>
+<script type="module" src="js/3d/hero.js?v=2"></script>
 </body>
 </html>

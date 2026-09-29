@@ -149,6 +149,36 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Process steps: light up in order + fill the progress line           */
+  /* ------------------------------------------------------------------ */
+  var processSteps = document.querySelector(".process-steps");
+  if (processSteps) {
+    var stepEls = processSteps.querySelectorAll(".process-step");
+    var reachedCount = 0;
+    var markReached = function (index) {
+      for (var i = 0; i <= index; i++) stepEls[i].classList.add("is-reached");
+      reachedCount = Math.max(reachedCount, index + 1);
+      var progress = stepEls.length > 1 ? (reachedCount - 1) / (stepEls.length - 1) : 1;
+      processSteps.style.setProperty("--progress", progress);
+    };
+    if ("IntersectionObserver" in window) {
+      var stepObserver = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            markReached(Array.prototype.indexOf.call(stepEls, entry.target));
+            stepObserver.unobserve(entry.target);
+          });
+        },
+        { rootMargin: "0px 0px -30% 0px", threshold: 0 }
+      );
+      stepEls.forEach(function (el) { stepObserver.observe(el); });
+    } else {
+      markReached(stepEls.length - 1);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Back-to-top button                                                   */
   /* ------------------------------------------------------------------ */
   var toTop = document.getElementById("toTop");
@@ -169,18 +199,36 @@
   var projectsGrid = document.getElementById("projectsGrid");
   var projects = window.PROJECTS_DATA || [];
 
+  /* Small illustrative UI per project: shows *what the system does*. */
+  function projectMockHTML(mock) {
+    if (!mock) {
+      return (
+        '<div class="mini-rows">' +
+          '<div class="mini-row"></div><div class="mini-row short"></div>' +
+          '<div class="mini-row accent"></div><div class="mini-row"></div>' +
+        '</div>'
+      );
+    }
+    var html = '<div class="mock-title">' + mock.title + '</div>';
+    if (mock.kind === "flow") {
+      return html + '<div class="mock-flow">' + mock.items.map(function (label, k) {
+        return '<span class="mock-chip' + (k === mock.active ? " is-active" : "") + '">' + label + '</span>';
+      }).join('<span class="mock-arrow">←</span>') + '</div>';
+    }
+    return html + '<ul class="mock-rows">' + mock.items.map(function (row) {
+      return '<li><span class="mock-label" dir="auto">' + row[0] + '</span>' +
+        (row[1] ? '<span class="mock-pill ' + (row[2] || "") + '" dir="auto">' + row[1] + '</span>' : '') +
+      '</li>';
+    }).join("") + '</ul>';
+  }
+
   function projectCardHTML(p, i) {
     return (
       '<article class="project-card reveal" data-index="' + i + '">' +
         '<div class="project-visual" aria-hidden="true">' +
           '<div class="mini-window">' +
             '<div class="mini-topbar"><i></i><i></i><i></i></div>' +
-            '<div class="mini-rows">' +
-              '<div class="mini-row"></div>' +
-              '<div class="mini-row short"></div>' +
-              '<div class="mini-row accent"></div>' +
-              '<div class="mini-row"></div>' +
-            '</div>' +
+            projectMockHTML(p.mock) +
           '</div>' +
         '</div>' +
         '<div class="project-body">' +
