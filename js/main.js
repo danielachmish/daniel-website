@@ -58,9 +58,14 @@
   /* Sticky header state on scroll                                       */
   /* ------------------------------------------------------------------ */
   var header = document.getElementById("siteHeader");
+  var scrollProgress = header.querySelector(".scroll-progress");
   function onScrollHeader() {
     if (window.scrollY > 12) header.classList.add("is-scrolled");
     else header.classList.remove("is-scrolled");
+    if (scrollProgress) {
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      scrollProgress.style.transform = "scaleX(" + (max > 0 ? Math.min(1, window.scrollY / max) : 0) + ")";
+    }
   }
   onScrollHeader();
   window.addEventListener("scroll", onScrollHeader, { passive: true });
