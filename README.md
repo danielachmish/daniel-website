@@ -1,4 +1,6 @@
-# DANIEL — אתר אישי (Daniel Lachmish)
+# DLX — אתר אישי (Daniel Lachmish)
+
+המותג הוא **DLX**. כל מערכת נקראת DLX + התחום שלה (למשל DLX FLOW, DLX RENT).
 
 אתר One Page מקצועי, RTL מלא, ל-Daniel Lachmish — מפתח Full Stack המתמחה במערכות SaaS,
 מערכות עסקיות ואוטומציות. האתר בנוי כ-HTML/CSS/JS סטטי (ללא framework, ללא build step),

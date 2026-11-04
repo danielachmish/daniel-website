@@ -1,7 +1,7 @@
 /**
  * shapes.js — the three "states" every particle moves between:
  *   chaos  → scattered data
- *   logo   → the DANIEL "D" monogram (same path as the SVG logo)
+ *   logo   → the DLX "D" monogram (same path as the SVG logo)
  *   system → an abstract dashboard (cards, chart bars, rows)
  * Each function returns a Float32Array of xyz triplets, n points long.
  */

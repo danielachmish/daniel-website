@@ -240,7 +240,9 @@
           '<span class="project-kicker">' + p.kicker + '</span>' +
           '<h3>' + p.name + '</h3>' +
           '<p class="project-row"><b>סוג המערכת:</b> ' + p.type + '</p>' +
-          '<div class="project-stack">' + p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") + '</div>' +
+          (p.stack && p.stack.length
+            ? '<div class="project-stack">' + p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") + '</div>'
+            : '') +
           '<div class="project-footer">' +
             '<button type="button" class="btn btn-ghost btn-sm project-detail-btn" data-index="' + i + '">לפרטים</button>' +
             (p.live ? '<a href="' + p.live + '" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">צפייה חיה ↗</a>' : '') +
@@ -262,6 +264,7 @@
   var modalProblem = document.getElementById("modalProblem");
   var modalBuilt = document.getElementById("modalBuilt");
   var modalStack = document.getElementById("modalStack");
+  var modalStackSection = document.getElementById("modalStackSection");
   var modalLive = document.getElementById("modalLive");
   var lastFocusedEl = null;
 
@@ -272,7 +275,9 @@
     modalTitle.textContent = p.name;
     modalProblem.textContent = p.problem;
     modalBuilt.textContent = p.built;
-    modalStack.innerHTML = p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("");
+    var hasStack = !!(p.stack && p.stack.length);
+    modalStack.innerHTML = hasStack ? p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") : "";
+    modalStackSection.hidden = !hasStack;
     if (p.live) {
       modalLive.href = p.live;
       modalLive.hidden = false;
