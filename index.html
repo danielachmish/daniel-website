@@ -30,7 +30,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 <noscript><style>.reveal{ opacity: 1 !important; transform: none !important; }</style></noscript>
 
 <script type="application/ld+json">
@@ -374,14 +374,16 @@
         <h4>מה נבנה</h4>
         <p id="modalBuilt"></p>
       </div>
+      <div class="modal-section" id="modalGallerySection" hidden>
+        <h4>צילומי מסך</h4>
+        <div class="gallery" id="modalGallery" tabindex="0" role="region" aria-label="צילומי מסך של המערכת. אפשר לגלול לצדדים"></div>
+      </div>
       <div class="modal-section" id="modalStackSection">
         <h4>טכנולוגיות</h4>
         <div class="project-stack" id="modalStack"></div>
       </div>
       <div class="modal-section" style="display:flex; gap:12px; flex-wrap:wrap;">
-        <a href="#contact" class="btn btn-primary" id="modalCta">בואו נדבר על פרויקט דומה</a>
-        <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-ghost" id="modalLive" hidden>צפייה חיה ↗</a>
-      </div>
+        <a href="#contact" class="btn btn-primary" id="modalCta">בואו נדבר על פרויקט דומה</a>      </div>
     </div>
   </div>
 
@@ -598,9 +600,9 @@
 </button>
 
 <!-- ?v= forces browsers to fetch fresh files after each release; bump it when these files change -->
-<script src="js/config.js?v=5"></script>
-<script src="js/projects-data.js?v=5"></script>
-<script src="js/main.js?v=5"></script>
-<script type="module" src="js/3d/hero.js?v=5"></script>
+<script src="js/config.js?v=6"></script>
+<script src="js/projects-data.js?v=6"></script>
+<script src="js/main.js?v=6"></script>
+<script type="module" src="js/3d/hero.js?v=6"></script>
 </body>
 </html>

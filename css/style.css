@@ -861,6 +861,29 @@ h3{ font-size: 1.3rem; }
 .modal-section h4{ font-size: .85rem; color: var(--accent-2); letter-spacing: .04em; margin-bottom: 6px; }
 .modal-section p{ color: var(--text-dim); margin: 0; }
 
+/* Screenshot gallery inside the project modal: horizontal strip, snaps per image */
+.gallery{
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  padding-bottom: 10px;
+  border-radius: 10px;
+}
+.gallery figure{ flex: 0 0 86%; margin: 0; scroll-snap-align: start; }
+.gallery figure:only-child{ flex-basis: 100%; }
+.gallery figure.is-portrait{ flex-basis: 44%; }
+.gallery img{
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-alt);
+}
+.gallery figcaption{ margin-top: 6px; font-size: .84rem; color: var(--text-muted); }
+
 /* ==========================================================================
    About
    ========================================================================== */

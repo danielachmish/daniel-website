@@ -244,9 +244,9 @@
             ? '<div class="project-stack">' + p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") + '</div>'
             : '') +
           '<div class="project-footer">' +
-            '<button type="button" class="btn btn-ghost btn-sm project-detail-btn" data-index="' + i + '">לפרטים</button>' +
-            (p.live ? '<a href="' + p.live + '" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">צפייה חיה ↗</a>' : '') +
-          '</div>' +
+            '<button type="button" class="btn btn-ghost btn-sm project-detail-btn" data-index="' + i + '">' +
+              (p.images && p.images.length ? "לפרטים וצילומי מסך" : "לפרטים") +
+            '</button>' +          '</div>' +
         '</div>' +
       '</article>'
     );
@@ -265,7 +265,8 @@
   var modalBuilt = document.getElementById("modalBuilt");
   var modalStack = document.getElementById("modalStack");
   var modalStackSection = document.getElementById("modalStackSection");
-  var modalLive = document.getElementById("modalLive");
+  var modalGallery = document.getElementById("modalGallery");
+  var modalGallerySection = document.getElementById("modalGallerySection");
   var lastFocusedEl = null;
 
   function openModal(index) {
@@ -278,12 +279,15 @@
     var hasStack = !!(p.stack && p.stack.length);
     modalStack.innerHTML = hasStack ? p.stack.map(function (s) { return "<span>" + s + "</span>"; }).join("") : "";
     modalStackSection.hidden = !hasStack;
-    if (p.live) {
-      modalLive.href = p.live;
-      modalLive.hidden = false;
-    } else {
-      modalLive.hidden = true;
-    }
+    var images = p.images || [];
+    modalGallery.innerHTML = images.map(function (img) {
+      return '<figure' + (img.h > img.w ? ' class="is-portrait"' : '') + '>' +
+        '<img src="' + img.src + '" alt="' + img.alt + '" width="' + img.w + '" height="' + img.h + '" loading="lazy" decoding="async">' +
+        '<figcaption>' + img.caption + '</figcaption>' +
+      '</figure>';
+    }).join("");
+    modalGallery.scrollLeft = 0;
+    modalGallerySection.hidden = images.length === 0;
     lastFocusedEl = document.activeElement;
     modal.classList.add("is-open");
     document.body.style.overflow = "hidden";
