@@ -17,8 +17,34 @@ const [, , target, outArg] = process.argv;
 if (!target) { console.error('Usage: node qa_web.mjs <url-or-file> [outdir]'); process.exit(2); }
 const OUT = path.resolve(outArg || './qa_web_out');
 fs.mkdirSync(OUT, { recursive: true });
-const url = /^https?:\/\//.test(target) || target.startsWith('file:')
-  ? target : pathToFileURL(path.resolve(target)).href;
+// Local files are served over a tiny in-process http server (file:// breaks ES modules, fetch, CORS).
+let server = null;
+let url;
+if (/^https?:\/\//.test(target) || target.startsWith('file:')) {
+  url = target;
+} else {
+  const http = require('http');
+  const abs = path.resolve(target);
+  const isDir = fs.existsSync(abs) && fs.statSync(abs).isDirectory();
+  const root = isDir ? abs : path.dirname(abs);
+  const entry = isDir ? 'index.html' : path.basename(abs);
+  const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
+    '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2',
+    '.mp4': 'video/mp4', '.webm': 'video/webm', '.glb': 'model/gltf-binary', '.txt': 'text/plain' };
+  server = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    let f = path.join(root, p);
+    if (!f.startsWith(root)) { res.writeHead(403).end(); return; }
+    if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
+    if (!fs.existsSync(f)) { res.writeHead(404).end('not found'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(f).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  url = `http://127.0.0.1:${server.address().port}/${entry}`;
+  console.log(`Serving ${root} at ${url}`);
+}
 
 const results = [];
 const pass = m => results.push(['PASS', m]);
@@ -143,6 +169,7 @@ try {
   }
 } finally {
   await browser.close();
+  if (server) server.close();
 }
 
 console.log('\n=== SUMMARY ===');
