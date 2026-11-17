@@ -99,18 +99,20 @@ try {
       return { dcl: n ? Math.round(n.domContentLoadedEventEnd) : null, load: n ? Math.round(n.loadEventEnd) : null };
     });
 
-    const audit = await page.evaluate(() => {
+    const audit = await page.evaluate((VPW) => {
       const vis = el => { const s = getComputedStyle(el); const r = el.getBoundingClientRect();
         return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity !== 0 && r.width > 0 && r.height > 0; };
       const desc = el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
         (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
-      const docW = document.documentElement.scrollWidth, winW = window.innerWidth;
+      // compare to the configured device width: mobile emulation silently zooms out to fit wide content
+      const docW = document.documentElement.scrollWidth, winW = VPW;
       // elements sticking out of the viewport (catches RTL overflow to the left, which scrollWidth can miss),
       // ignoring ones clipped by a scrolling/hidden ancestor (carousels, marquees)
       const clipped = el => { for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
         const o = getComputedStyle(a).overflowX; if (o === 'hidden' || o === 'auto' || o === 'scroll' || o === 'clip') return true; } return false; };
       const overflowers = [...document.querySelectorAll('body *')]
-        .filter(e => { const r = e.getBoundingClientRect(); return vis(e) && (r.right > winW + 1 || r.left < -1) && !clipped(e); })
+        .filter(e => { const r = e.getBoundingClientRect(); const offCanvas = r.left >= winW - 1 || r.right <= 1; // fully off-screen drawers/menus are fine
+          return vis(e) && !offCanvas && (r.right > winW + 1 || r.left < -1) && !clipped(e); })
         .slice(0, 5).map(desc);
       const imgNoAlt = [...document.querySelectorAll('img')].filter(i => !i.hasAttribute('alt')).map(i => i.src.split('/').pop()).slice(0, 10);
       const inputs = [...document.querySelectorAll('input, select, textarea')]
@@ -139,7 +141,7 @@ try {
         lang: document.documentElement.getAttribute('lang'), dir: document.documentElement.getAttribute('dir') || getComputedStyle(document.documentElement).direction,
         title: document.title, viewportMeta: !!document.querySelector('meta[name=viewport]'),
       };
-    });
+    }, vp.width);
 
     const P = `[${vp.name}]`;
     console.log(`\n=== ${vp.name.toUpperCase()} ${vp.width}x${vp.height} ===`);
