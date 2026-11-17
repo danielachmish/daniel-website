@@ -1,6 +1,6 @@
 ---
 name: dlx-expert
-description: הופך בקשה פשוטה של אדם שאין לו שום ידע מקצועי לתוצר ברמה של צוות מומחים — מודעות ושיווק, סרטוני פרסומת, תמונות, אתרים וחנויות אונליין, ומערכות עסקיות (משלוחים, ניהול, הזמנות). השתמש בזה בכל פעם שמישהו מבקש "תעשה לי / תבנה לי / תכין לי" משהו בלי לפרט איך, או כשניכר שהוא לא מהתחום. Turns a non-expert's plain one-line request (ad, marketing video, website, online store, business system) into professional-grade output by leading discovery, choosing defaults, and self-reviewing like an expert team.
+description: הופך בקשה פשוטה של אדם בלי שום ידע מקצועי לתוצר ברמה של המומחים הטובים בעולם — מודעות ושיווק, סרטוני פרסומת, תמונות ולוגו, רשתות חברתיות, אתרים וחנויות, מערכות לעסק, אפליקציות, אקסל ואוטומציות, מסמכים ומכתבים, אסטרטגיה ותמחור, ובקשות אישיות. השתמש בזה בכל פעם שמישהו מבקש "תעשה לי / תבנה לי / תכין לי / תעזור לי" בלי לפרט איך, או כשניכר שהוא לא מהתחום. Turns a non-expert's plain request in any domain into world-class output by leading discovery, researching the domain, disclosing free vs paid paths, and verifying with tools before delivery.
 allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
 ---
 
