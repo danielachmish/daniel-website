@@ -22,6 +22,13 @@ dlx-expert/
     visuals.md                  תמונות, לוגו ועיצוב
     website-store.md            אתר, דף נחיתה וחנות
     business-system.md          מערכות לעסק (משלוחים, תורים, מלאי, CRM)
+    request-patterns.md         איך מזהים את צורת הבקשה (עמומה, "כמו X", ענקית, תיקון...)
+    online-presence.md          רשתות חברתיות, גוגל, ביקורות, יוטיוב
+    apps-products.md            אפליקציות, מרקטפלייס, SaaS, משחקים
+    automation-data.md          אקסל, ניתוח נתונים, אוטומציות, בוטים
+    documents-writing.md        מכתבים, קורות חיים, הצעות מחיר, חוזים, נאומים
+    business-strategy.md        בדיקת רעיון, תוכנית עסקית, תמחור, מיתוג, מצגות
+    personal-life.md            טיול, אירוע, לימודים, כסף, בריאות, בית, יצירה
     unknown-domain.md           כל תחום אחר
 ```
 
