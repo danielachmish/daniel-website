@@ -105,9 +105,13 @@ try {
       const desc = el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
         (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
       const docW = document.documentElement.scrollWidth, winW = window.innerWidth;
-      const overflowers = docW > winW + 1 ? [...document.querySelectorAll('body *')]
-        .filter(e => { const r = e.getBoundingClientRect(); return vis(e) && (r.right > winW + 1 || r.left < -1); })
-        .slice(0, 5).map(desc) : [];
+      // elements sticking out of the viewport (catches RTL overflow to the left, which scrollWidth can miss),
+      // ignoring ones clipped by a scrolling/hidden ancestor (carousels, marquees)
+      const clipped = el => { for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        const o = getComputedStyle(a).overflowX; if (o === 'hidden' || o === 'auto' || o === 'scroll' || o === 'clip') return true; } return false; };
+      const overflowers = [...document.querySelectorAll('body *')]
+        .filter(e => { const r = e.getBoundingClientRect(); return vis(e) && (r.right > winW + 1 || r.left < -1) && !clipped(e); })
+        .slice(0, 5).map(desc);
       const imgNoAlt = [...document.querySelectorAll('img')].filter(i => !i.hasAttribute('alt')).map(i => i.src.split('/').pop()).slice(0, 10);
       const inputs = [...document.querySelectorAll('input, select, textarea')]
         .filter(e => !['hidden', 'submit', 'button', 'reset', 'image'].includes(e.type));
@@ -147,9 +151,11 @@ try {
     failed.length ? warn(`${P} ${failed.length} failed request(s): ${failed.slice(0, 3).join(' | ')}`)
                   : pass(`${P} no failed requests`);
     if (vp.name === 'mobile') {
-      audit.docW > audit.winW + 1
-        ? fail(`${P} horizontal overflow: page ${audit.docW}px > viewport ${audit.winW}px (${audit.overflowers.join(', ')})`)
-        : pass(`${P} no horizontal overflow`);
+      if (audit.docW > audit.winW + 1)
+        fail(`${P} horizontal overflow: page ${audit.docW}px > viewport ${audit.winW}px (${audit.overflowers.join(', ')})`);
+      else if (audit.overflowers.length)
+        fail(`${P} elements extend outside the screen (cut off or scrollable sideways): ${audit.overflowers.join(', ')}`);
+      else pass(`${P} no horizontal overflow`);
       audit.viewportMeta ? pass(`${P} viewport meta present`) : fail(`${P} missing <meta name=viewport>`);
     }
     audit.tinyCount ? warn(`${P} ${audit.tinyCount} visible text element(s) under 12px: ${audit.tiny.slice(0, 3).join(' | ')}`)
