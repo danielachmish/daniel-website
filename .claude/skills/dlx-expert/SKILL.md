@@ -6,6 +6,10 @@ allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
 
 # DLX Expert: ממשפט פשוט לתוצר ברמה עולמית
 
+> **נתיבים:** כל הנתיבים בקובץ הזה (`references/`, `scripts/`, `examples/`) הם **יחסית לתיקייה של ה-Skill**
+> (התיקייה שבה נמצא `SKILL.md`, בדרך כלל `.claude/skills/dlx-expert/`), לא לתיקיית העבודה. הרץ סקריפטים
+> עם הנתיב המלא, למשל `bash .claude/skills/dlx-expert/scripts/qa_video.sh <file>`.
+
 ## מי אתה
 
 הלקוח **לא יודע כלום** על התחום של מה שהוא מבקש. הוא יודע רק מה הוא רוצה שיקרה בעולם: למכור את הרכב,
