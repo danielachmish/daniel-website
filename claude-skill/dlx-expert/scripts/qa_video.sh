@@ -16,6 +16,8 @@ command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo "ffmpeg/
 declare -a FLAGS=()
 pass() { FLAGS+=("PASS  $1"); }
 warn() { FLAGS+=("WARN  $1"); }
+NFAIL=0
+fail() { FLAGS+=("FAIL  $1"); NFAIL=$((NFAIL+1)); }
 
 # ---------- metadata ----------
 DUR=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$VIDEO")
@@ -108,25 +110,79 @@ else
   echo "No audio stream."
 fi
 
+# ---------- opening frame content (edge density) ----------
+edge_at() { ffmpeg -hide_banner -ss "$1" -i "$VIDEO" -frames:v 1 \
+  -vf "scale=540:-1,edgedetect=low=0.1:high=0.3,signalstats,metadata=print:key=lavfi.signalstats.YAVG" \
+  -f null - 2>&1 | grep -o 'YAVG=[0-9.]*' | head -1 | cut -d= -f2; }
+E0=$(edge_at 0); E0=${E0:-0}
+E1=$(edge_at 1); E1=${E1:-0}
+echo; echo "=== OPENING CONTENT ==="
+echo "Edge density: frame 0 = $E0, frame 1s = $E1  (0 = empty frame; <1.5 = sparse)"
+
+# ---------- music credits ----------
+VDIR=$(cd "$(dirname "$VIDEO")" && pwd)
+CREDITS=""
+for c in "$VDIR/CREDITS.md" "$VDIR/../CREDITS.md" "$PWD/CREDITS.md"; do [[ -f "$c" ]] && CREDITS="$c" && break; done
+
 # ---------- summary ----------
 awk -v a="$AVG_SHOT" 'BEGIN{exit !(a>4)}' && warn "Avg shot length ${AVG_SHOT}s > 4s (slow pacing; ads 1-2.5s, explainers 2.5-4s)" \
   || pass "Avg shot length ${AVG_SHOT}s"
 awk -v m="$MOTION" 'BEGIN{exit !(m<1.0)}' && warn "First 3s mostly static (YDIF $MOTION) - weak hook" \
   || pass "First 3s has motion (YDIF $MOTION)"
+awk -v e="$E0" 'BEGIN{exit !(e<0.5)}' && fail "Frame 0 is empty (edge density $E0) - the thumbnail and the hook show nothing. Start on a strong, full frame" \
+  || pass "Frame 0 has content (edge density $E0)"
+awk -v e="$E1" 'BEGIN{exit !(e<1.5)}' && warn "Frame at 1s is sparse (edge density $E1) - hook may be too slow" || true
 if [[ -z "$HAS_AUDIO" ]]; then
   warn "No audio track"
 else
   if [[ "$LUFS" =~ ^-?[0-9.]+$ ]] && awk -v l="$LUFS" 'BEGIN{exit !(l<-16 || l>-12)}'; then
-    warn "Loudness ${LUFS} LUFS outside -16..-12 (target ~-14 for social)"
+    fail "Loudness ${LUFS} LUFS outside -16..-12 (normalize to -14: see marketing-video.md audio recipe)"
   else pass "Loudness ${LUFS} LUFS"; fi
   if [[ "$TP" =~ ^-?[0-9.]+$ ]] && awk -v p="$TP" 'BEGIN{exit !(p>-1)}'; then
-    warn "True peak ${TP} dBTP > -1 (clipping risk)"
+    fail "True peak ${TP} dBTP > -1 (audible clipping/distortion on phones)"
   else pass "True peak ${TP} dBTP"; fi
+  if [[ -n "$CREDITS" ]]; then pass "Music/asset credits found: $CREDITS"
+  else fail "Audio present but no CREDITS.md next to the video - music source and license unproven (synthesized music is forbidden)"; fi
 fi
 awk -v d="$DUR" 'BEGIN{exit !(d>60)}' && warn "Duration ${DUR}s > 60s - check it fits the platform" || pass "Duration ok for most platforms"
 
 echo; echo "=== SUMMARY ==="
 printf '%s\n' "${FLAGS[@]}"
+
+# ---------- report to attach to the delivery ----------
+REPORT="$OUT/qa_report.md"
+{
+  echo "# דוח בדיקת סרטון"
+  echo
+  echo "קובץ: \`$(basename "$VIDEO")\` | ${DUR}s | ${W}x${H} | חיתוכים: ${NCUTS:-?} | ממוצע לשוט: ${AVG_SHOT}s"
+  echo "סאונד: ${LUFS:-אין} LUFS, שיא ${TP:-אין} dBTP"
+  echo
+  echo "## בדיקות אוטומטיות"
+  printf -- '- %s\n' "${FLAGS[@]}"
+  echo
+  echo "## בדיקה ידנית (חובה למלא, עם זמן בסרטון כהוכחה)"
+  echo "| סעיף | עובר? | הוכחה (שנייה / פריים) |"
+  echo "|---|---|---|"
+  for item in "לא פותח בלוגו, במסך פתיחה, בהתחברות או בהרשמה" \
+              "ההוק מראה כאב או רגע מפתיע ב-3 השניות הראשונות" \
+              "אף קומפוזיציה לא חוזרת ביותר מ-2 סצנות" \
+              "אין קליפ-ארט גנרי ואין ערבוב סגנונות" \
+              "מוצרים אמיתיים (לא אייקונים או מלבנים)" \
+              "זום לפרט החשוב בכל מסך ממשק" \
+              "כל טקסט קריא ברוחב 360px" \
+              "טקסט וכפתורים מחוץ לאזורים הלא בטוחים (9:16)" \
+              "המצלמה לא סטטית יותר מ-3 שניות" \
+              "המוזיקה היא קטע אמיתי עם רישיון (לא סינתזה)" \
+              "הגיבור הוא אדם או לקוח, לא המערכת" \
+              "הנעה לפעולה ברורה בסוף"; do
+    echo "| $item |  |  |"
+  done
+} > "$REPORT"
 echo
+echo "Report (attach to delivery, fill the manual table): $REPORT"
 echo "NEXT: open timeline_sheet.png, contact_sheet.png, phone/*.png and spectrogram.png and LOOK at them."
-echo "Automated checks cannot judge: logo opening, repeated layouts, clip-art, synthesized music, readability of content."
+if (( NFAIL > 0 )); then
+  echo "RESULT: FAIL ($NFAIL) - do NOT deliver. Fix, re-render, re-run."
+  exit 1
+fi
+echo "RESULT: no automatic failures. Delivery still requires the manual table to be fully passing."
