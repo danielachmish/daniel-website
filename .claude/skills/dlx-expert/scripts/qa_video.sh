@@ -73,7 +73,7 @@ done
 rm -f "$OUT/.bounds"
 COLS=4; [[ $i -lt 4 ]] && COLS=$i
 ROWS=$(( (i + COLS - 1) / COLS ))
-ffmpeg -v error -y -pattern_type glob -i "$OUT/shots/shot_*.png" \
+ffmpeg -v error -y -pattern_type glob -i "$OUT/shots/shot_???.png" \
   -vf "tile=${COLS}x${ROWS}:padding=6:color=black" -frames:v 1 "$OUT/contact_sheet.png"
 echo "Contact sheet ($i shots): $OUT/contact_sheet.png"
 
@@ -83,6 +83,11 @@ NT=$(awk -v d="$DUR" -v s="$STEP" 'BEGIN{ printf "%d", d/s }'); [[ "$NT" -lt 1 ]
 TR=$(( (NT + 5) / 6 ))
 ffmpeg -v error -y -i "$VIDEO" -vf "fps=1/${STEP},scale=320:-2,tile=6x${TR}:padding=4:color=black" -frames:v 1 "$OUT/timeline_sheet.png"
 echo "Timeline sheet (1 frame / ${STEP}s): $OUT/timeline_sheet.png"
+mkdir -p "$OUT/review"
+ffmpeg -v error -y -i "$VIDEO" -vf "fps=2,scale=480:-2,drawtext=text='%{pts\\:hms}':x=8:y=8:fontsize=22:fontcolor=yellow:box=1:boxcolor=black@0.6,tile=4x3" \
+  -start_number 1 "$OUT/review/review_%02d.png" 2>/dev/null || true
+for f in "$OUT"/shots/shot_[0-9][0-9][0-9].png; do [[ -f "$f" ]] && ffmpeg -v error -y -i "$f" -vf scale=360:-2 "${f%.png}_360w.png"; done
+echo "Review sheets (every 0.5s, timestamped, 12 per page): $OUT/review/  <- the critic must look at EVERY page"
 
 # ---------- first 3s motion ----------
 # mean absolute frame difference over first 3s (0..255 scale via signalstats YDIF)
@@ -189,6 +194,7 @@ REPORT="$OUT/qa_report.md"
   echo "|---|---|---|---|"
   for f in "$OUT"/shots/shot_*.png; do
     [[ -f "$f" ]] || continue
+    [[ "$f" == *_360w.png ]] && continue
     n=$(basename "$f" .png | sed 's/shot_0*//')
     echo "| $n | \`$f\` |  |  |"
   done
@@ -200,4 +206,5 @@ if (( NFAIL > 0 )); then
   echo "RESULT: FAIL ($NFAIL) - do NOT deliver. Fix, re-render, re-run."
   exit 1
 fi
-echo "RESULT: no automatic failures. Delivery still requires the manual table to be fully passing."
+echo "RESULT: TECHNICAL checks passed (cuts, loudness, peak, opening frame, credits). CONTENT IS NOT VERIFIED by this script."
+echo "Do NOT write \"QA passed\" in the delivery based on this. Delivery requires: critic review of ALL review/ pages on THIS render, with zero auto-fail items, and the per-shot table filled."
