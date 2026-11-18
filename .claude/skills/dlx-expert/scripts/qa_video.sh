@@ -180,6 +180,18 @@ REPORT="$OUT/qa_report.md"
               "הנעה לפעולה ברורה בסוף"; do
     echo "| $item |  |  |"
   done
+  echo
+  echo "## ביקורת שוט אחרי שוט (חובה: להסתכל על כל תמונה ולמלא כל שורה)"
+  echo "שאלות לכל שוט: (1) מה רואים בשנייה אחת? (2) נראה כמו העולם של הלקוח? (3) כל טקסט קריא ולא מסתיר?"
+  echo "(4) משהו עקום, חתוך, מטושטש, זר או לא עקבי? (5) מקדם את ההבטחה?"
+  echo
+  echo "| שוט | תמונה | מה רואים | עובר / מה לתקן |"
+  echo "|---|---|---|---|"
+  for f in "$OUT"/shots/shot_*.png; do
+    [[ -f "$f" ]] || continue
+    n=$(basename "$f" .png | sed 's/shot_0*//')
+    echo "| $n | \`$f\` |  |  |"
+  done
 } > "$REPORT"
 echo
 echo "Report (attach to delivery, fill the manual table): $REPORT"
