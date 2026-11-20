@@ -1,0 +1,9 @@
+{
+  "_note": "Safe zones are fractions of the canvas. minText/headlineMin are canvas pixels. Sources and dates: references/visuals.md (רף הסוכנות). Check the platform's current spec before a paid campaign.",
+  "feed-4x5":    {"w":1080,"h":1350,"safe":{"top":0.05,"bottom":0.05,"left":0.06,"right":0.06},"minText":32,"headlineMin":60,"use":"Instagram/Facebook feed post and ad, carousel slide"},
+  "square-1x1":  {"w":1080,"h":1080,"safe":{"top":0.06,"bottom":0.06,"left":0.06,"right":0.06},"minText":32,"headlineMin":60,"use":"Square feed, Google Demand Gen / PMax square (1200x1200 recommended there)"},
+  "story-9x16":  {"w":1080,"h":1920,"safe":{"top":0.14,"bottom":0.35,"left":0.06,"right":0.06},"minText":40,"headlineMin":80,"use":"Stories/Reels (Meta unified 9:16 safe zone), TikTok also keep 140px clear on the right"},
+  "story-tiktok":{"w":1080,"h":1920,"safe":{"top":0.14,"bottom":0.35,"left":0.06,"right":0.13},"minText":40,"headlineMin":80,"use":"TikTok 9:16 with right-side action buttons"},
+  "banner-web":  {"w":1920,"h":800,"safe":{"top":0.10,"bottom":0.10,"left":0.08,"right":0.08},"minText":30,"headlineMin":72,"use":"Website hero banner (desktop). Mobile needs its own 4:5 version"},
+  "landscape-191":{"w":1200,"h":628,"safe":{"top":0.07,"bottom":0.07,"left":0.06,"right":0.06},"minText":26,"headlineMin":48,"use":"Link ads, Google Demand Gen/PMax landscape 1.91:1, LinkedIn single image"}
+}

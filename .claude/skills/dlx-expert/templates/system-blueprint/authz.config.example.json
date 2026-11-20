@@ -1,0 +1,27 @@
+{
+  "baseUrl": "https://staging.example.co.il",
+  "allowInsecureCookiesOnLocalhost": false,
+  "csrf": { "fieldNames": ["_csrf", "csrf_token", "authenticity_token"], "headerName": "x-csrf-token" },
+  "users": {
+    "A": {
+      "login": { "method": "POST", "path": "/login", "csrfFrom": "/login", "form": { "email": "store-a@test.local", "password": "${env:QA_PASS_A}" } },
+      "csrfPage": "/orders/<id-of-A>"
+    },
+    "B": {
+      "login": { "method": "POST", "path": "/login", "csrfFrom": "/login", "form": { "email": "store-b@test.local", "password": "${env:QA_PASS_B}" } },
+      "csrfPage": "/orders/<id-of-B>"
+    }
+  },
+  "pages": ["/login", "/orders", "/orders/<id-of-A>"],
+  "protectedPages": ["/orders", "/orders/<id-of-A>", "/admin"],
+  "resources": [
+    { "name": "A's order page", "method": "GET", "path": "/orders/<id-of-A>", "ownerMarker": "<recipient name in A's order>" },
+    { "name": "A's order JSON", "method": "GET", "path": "/api/orders/<id-of-A>", "ownerMarker": "<recipient name in A's order>" },
+    { "name": "A's export", "method": "GET", "path": "/api/orders/export?store=<A>", "ownerMarker": "<recipient name in A's order>" },
+    { "name": "A's proof-of-delivery photo", "method": "GET", "path": "/files/pod/<id-of-A>.jpg" },
+    { "name": "change A's order status", "method": "POST", "path": "/api/orders/<id-of-A>/status", "json": { "status": "delivered" }, "stateChanging": true },
+    { "name": "change A's price (admin only)", "method": "PATCH", "path": "/api/orders/<id-of-A>", "json": { "price_agorot": 1 }, "stateChanging": true, "baseline": false },
+    { "name": "admin users list", "method": "GET", "path": "/api/admin/users", "baseline": false },
+    { "name": "delete A's order", "method": "DELETE", "path": "/api/orders/<id-of-A>", "stateChanging": true, "baseline": false }
+  ]
+}
