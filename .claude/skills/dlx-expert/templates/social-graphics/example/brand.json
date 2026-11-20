@@ -1,0 +1,10 @@
+{
+  "name": "שם העסק",
+  "site": "example.co.il",
+  "phone": "[טלפון]",
+  "tagline": "[סלוגן מאושר]",
+  "colors": {"bg": "#0a0b09", "surface": "#1a2014", "accent": "#84cc2d", "text": "#ffffff", "muted": "#b9c2b1", "onAccent": "#0a0b09"},
+  "font": null,
+  "logo": {"onDark": "assets/logo_dark.png", "onLight": null},
+  "facts": "Only what the client confirmed. Everything else stays [לאשר]."
+}

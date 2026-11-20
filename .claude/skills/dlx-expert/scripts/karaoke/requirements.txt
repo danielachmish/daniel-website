@@ -1,0 +1,16 @@
+# Install torch first from the CPU index (see README.md), then: pip install -r requirements.txt
+# Versions tested 11/2026 on Python 3.13, CPU only.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0
+torchaudio==2.11.1
+torchvision==0.29.2
+audio-separator[cpu]==0.48.0
+audioread==3.1.0
+faster-whisper==1.2.1
+stable-ts==2.19.1
+librosa==1.0.1
+soundfile==0.14.0
+pyloudnorm==0.2.0
+pillow>=10
+numpy>=2
+scipy>=1.11

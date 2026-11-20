@@ -1,0 +1,177 @@
+{
+  "baseUrl": "https://staging.example.co.il",
+  "allowInsecureCookiesOnLocalhost": false,
+  "csrf": {
+    "fieldNames": [
+      "_csrf",
+      "csrf_token",
+      "authenticity_token"
+    ],
+    "headerName": "x-csrf-token"
+  },
+  "users": {
+    "A": {
+      "login": {
+        "method": "POST",
+        "path": "/login",
+        "csrfFrom": "/login",
+        "form": {
+          "email": "store-a@test.local",
+          "password": "${env:QA_PASS_A}"
+        }
+      },
+      "whoami": {
+        "path": "/me",
+        "marker": "<text only A sees, e.g. store A's name>"
+      },
+      "csrfPage": "/orders/<id-of-A>"
+    },
+    "B": {
+      "login": {
+        "method": "POST",
+        "path": "/login",
+        "csrfFrom": "/login",
+        "form": {
+          "email": "store-b@test.local",
+          "password": "${env:QA_PASS_B}"
+        }
+      },
+      "whoami": {
+        "path": "/me",
+        "marker": "<store B's name>"
+      },
+      "csrfPage": "/orders/<id-of-B>"
+    },
+    "C": {
+      "login": {
+        "method": "POST",
+        "path": "/login",
+        "csrfFrom": "/login",
+        "form": {
+          "email": "driver-1@test.local",
+          "password": "${env:QA_PASS_C}"
+        }
+      },
+      "whoami": {
+        "path": "/me",
+        "marker": "<driver 1's name>"
+      },
+      "csrfPage": "/driver/today"
+    }
+  },
+  "pages": [
+    "/login",
+    "/orders",
+    "/orders/<id-of-A>"
+  ],
+  "protectedPages": [
+    "/orders",
+    "/orders/<id-of-A>",
+    "/admin"
+  ],
+  "logout": {
+    "method": "POST",
+    "path": "/logout",
+    "csrfFrom": "/orders"
+  },
+  "rateLimit": {
+    "path": "/login",
+    "csrfFrom": "/login",
+    "form": {
+      "email": "ratelimit-probe@test.local",
+      "password": "wrong"
+    },
+    "attempts": 20,
+    "validForm": {
+      "email": "ratelimit-probe@test.local",
+      "password": "${env:QA_PASS_RL}"
+    },
+    "whoami": {
+      "path": "/me",
+      "marker": "<the lock-test user's name>"
+    },
+    "minLockSeconds": 300
+  },
+  "resources": [
+    {
+      "name": "A's order page",
+      "path": "/orders/<id-of-A>",
+      "ownerMarkers": [
+        "<recipient name>",
+        "<recipient phone>"
+      ]
+    },
+    {
+      "name": "A's order JSON",
+      "path": "/api/orders/<id-of-A>",
+      "ownerMarkers": [
+        "<recipient name>",
+        "<recipient phone>",
+        "<street>"
+      ]
+    },
+    {
+      "name": "A's export",
+      "path": "/api/orders/export?store=<A>",
+      "ownerMarkers": [
+        "<recipient name>"
+      ]
+    },
+    {
+      "name": "A's proof-of-delivery photo",
+      "path": "/api/orders/<id-of-A>/proof"
+    },
+    {
+      "name": "cancel A's order",
+      "method": "POST",
+      "path": "/api/orders/<id-of-A>/cancel",
+      "json": {},
+      "stateChanging": true,
+      "verify": {
+        "path": "/api/orders/<id-of-A>"
+      }
+    },
+    {
+      "name": "store sets its own price (admin only)",
+      "method": "PATCH",
+      "path": "/api/orders/<id-of-A>",
+      "json": {
+        "price_agorot": 1
+      },
+      "stateChanging": true,
+      "ownerMustBeRefused": true,
+      "verify": {
+        "path": "/api/orders/<id-of-A>"
+      }
+    },
+    {
+      "name": "store marks its own order delivered (drivers only)",
+      "method": "POST",
+      "path": "/api/orders/<id-of-A>/status",
+      "json": {
+        "status": "delivered"
+      },
+      "stateChanging": true,
+      "ownerMustBeRefused": true,
+      "verify": {
+        "path": "/api/orders/<id-of-A>"
+      }
+    },
+    {
+      "name": "admin users list",
+      "path": "/api/admin/users",
+      "baseline": false
+    },
+    {
+      "name": "delete A's order",
+      "method": "DELETE",
+      "path": "/api/orders/<id-of-A>",
+      "stateChanging": true,
+      "baseline": false,
+      "verify": {
+        "path": "/api/orders/<id-of-A>"
+      }
+    }
+  ],
+  "maxSessionSeconds": 43200
+}

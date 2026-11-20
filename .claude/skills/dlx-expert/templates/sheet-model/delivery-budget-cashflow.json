@@ -1,0 +1,1243 @@
+{
+  "title": "תקציב ותזרים מזומנים 2027: חברת משלוחים (דוגמה)",
+  "subtitle": "השאלה: כמה נרוויח השנה, באיזה חודש הכסף בבנק הכי נמוך, וכמה נהגים צריך. כל המספרים בלשונית 'הנחות' הם דוגמה ומוחלפים בנתוני הלקוח.",
+  "start": "2027-01-01",
+  "months": 12,
+  "inputs": [
+    {
+      "section": "נפח עבודה ומחיר"
+    },
+    {
+      "name": "DeliveriesPerDay",
+      "label": "משלוחים ביום עבודה רגיל",
+      "value": 250,
+      "unit": "משלוחים",
+      "format": "int",
+      "min": 0,
+      "max": 20000,
+      "note": "[להשלים מהלקוח: ממוצע של 2–3 החודשים האחרונים]"
+    },
+    {
+      "name": "WorkingDays",
+      "label": "ימי עבודה בחודש",
+      "unit": "ימים",
+      "format": "int",
+      "min": 0,
+      "max": 31,
+      "series": [
+        21,
+        20,
+        23,
+        19,
+        21,
+        22,
+        21,
+        23,
+        22,
+        19,
+        22,
+        22
+      ],
+      "note": "א׳–ה׳ ב-2027 פחות חגים שחלים בהם (פסח א׳ ו-ז׳, יום העצמאות, ראש השנה ב׳, יום כיפור), לפי hebcal.com. ערבי חג וחול המועד נספרים כרגילים"
+    },
+    {
+      "name": "Seasonality",
+      "label": "מקדם עונתיות (1 = חודש רגיל)",
+      "unit": "מקדם",
+      "format": "num",
+      "min": 0,
+      "max": 3,
+      "series": [
+        1.0,
+        0.95,
+        1.05,
+        1.1,
+        0.95,
+        0.95,
+        0.9,
+        0.9,
+        1.05,
+        1.0,
+        1.25,
+        1.15
+      ],
+      "note": "דוגמה: לפני פסח ובנובמבר (בלאק פריידיי) יותר, בקיץ פחות. [להשלים מהנתונים של הלקוח]"
+    },
+    {
+      "name": "PricePerDelivery",
+      "label": "מחיר ממוצע שהחנות משלמת למשלוח (לפני מע\"מ)",
+      "value": 28,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 500
+    },
+    {
+      "name": "FailedRate",
+      "label": "אחוז משלוחים שנכשלים בניסיון הראשון",
+      "value": 0.04,
+      "unit": "%",
+      "format": "pct",
+      "note": "כל כישלון = ניסיון נוסף בלי תוספת תשלום"
+    },
+    {
+      "name": "MaxPerDriverDay",
+      "label": "כמה משלוחים נהג אחד מספיק ביום",
+      "value": 45,
+      "unit": "משלוחים",
+      "format": "int",
+      "min": 1,
+      "max": 500,
+      "note": "קובע כמה נהגים צריך בחודש עמוס. [להשלים מהלקוח]"
+    },
+    {
+      "section": "עלויות לכל משלוח"
+    },
+    {
+      "name": "FuelPerDelivery",
+      "label": "דלק למשלוח",
+      "value": 3.2,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "RedeliveryCost",
+      "label": "עלות ניסיון מסירה נוסף",
+      "value": 6,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "MessagingPerDelivery",
+      "label": "הודעות וואטסאפ לנמען, למשלוח",
+      "value": 0.05,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 10,
+      "note": "2 הודעות 'עדכון' בכ-0.005$ (מדריך צד שלישי, לא אומת מול Meta), ועוד מרווח. כמו בתוכנית המערכת"
+    },
+    {
+      "name": "SuppliesPerDelivery",
+      "label": "מדבקות וחומרים למשלוח",
+      "value": 0.3,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 10
+    },
+    {
+      "name": "OtherVarPerDelivery",
+      "label": "עלות משתנה נוספת למשלוח (שורה שמורה)",
+      "value": 0,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 100,
+      "note": "להוצאה חדשה בלי לבנות מחדש: מזינים סכום וכותבים כאן מה היא. נכנסת לכל הסיכומים, למע\"מ ולתזרים"
+    },
+    {
+      "name": "LostParcelRate",
+      "label": "חבילות שאובדות או נפגעות (מכלל המשלוחים)",
+      "value": 0.0005,
+      "unit": "%",
+      "format": "pct",
+      "note": "אחת ל-2,000 משלוחים. [להשלים מהלקוח: כמה אבדו בחצי השנה האחרונה]"
+    },
+    {
+      "name": "CompensationPerParcel",
+      "label": "פיצוי ממוצע לחנות על חבילה שאבדה",
+      "value": 150,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000
+    },
+    {
+      "section": "עובדים ובעלים"
+    },
+    {
+      "name": "Drivers",
+      "label": "נהגים קבועים (מינימום)",
+      "value": 6,
+      "unit": "נהגים",
+      "format": "int",
+      "min": 0,
+      "max": 500,
+      "note": "בחודש עמוס המודל מוסיף נהגים לפי הקיבולת"
+    },
+    {
+      "name": "DriverGrossSalary",
+      "label": "שכר ברוטו לנהג בחודש",
+      "value": 9500,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000
+    },
+    {
+      "name": "WarehouseStaffSalary",
+      "label": "שכר ברוטו לעובדי מחסן (סה\"כ בחודש)",
+      "value": 11000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "name": "EmployerCostRate",
+      "label": "עלות מעסיק מעל הברוטו (ביטוח לאומי, פנסיה, פיצויים, חופשה)",
+      "value": 0.25,
+      "unit": "%",
+      "format": "pct",
+      "note": "הערכה מקובלת. [לאמת מול רו\"ח]"
+    },
+    {
+      "name": "OwnerDraw",
+      "label": "משיכת הבעלים בחודש",
+      "value": 15000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000,
+      "note": "יוצא מהבנק, לא הוצאה ברווח התפעולי (בעוסק מורשה)"
+    },
+    {
+      "name": "OwnerNI",
+      "label": "ביטוח לאומי ומס בריאות של הבעלים (מקדמה חודשית)",
+      "value": 2500,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000,
+      "note": "[להשלים מרו\"ח]"
+    },
+    {
+      "section": "רכבים והוצאות קבועות (בחודש)"
+    },
+    {
+      "name": "VehicleLeasePerDriver",
+      "label": "ליסינג לרכב (מסחרי)",
+      "value": 3200,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 50000,
+      "note": "ההנחה: רכב מסחרי, מע\"מ תשומות מנוכה במלואו. ברכב פרטי הניכוי מוגבל [לאמת מול רו\"ח]"
+    },
+    {
+      "name": "VehicleInsurancePerDriver",
+      "label": "ביטוח לרכב (בלי מע\"מ)",
+      "value": 450,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 50000
+    },
+    {
+      "name": "SeasonalVehicleRent",
+      "label": "רכב שכור לחודש, לנהג נוסף בעונה (לפני מע\"מ)",
+      "value": 5500,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000,
+      "note": "נהג נוסף בחודש עמוס נוסע ברכב שכור לחודש (ליסינג לחודש אחד לא מציאותי). [להשלים: הצעת מחיר]"
+    },
+    {
+      "name": "WarehouseRent",
+      "label": "שכירות מחסן",
+      "value": 7000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "name": "SoftwareMonthly",
+      "label": "מערכת משלוחים ואחסון (בלי הודעות)",
+      "value": 200,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000,
+      "note": "שרת, מסד נתונים, גיבוי ואחסון צילומים: כ-20–50$ לפי תוכנית המערכת (ההודעות בשורה נפרדת), כולל מרווח"
+    },
+    {
+      "name": "AccountingMonthly",
+      "label": "הנהלת חשבונות",
+      "value": 1200,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000
+    },
+    {
+      "name": "OtherFixed",
+      "label": "שונות (טלפונים, משרד, אחזקה)",
+      "value": 1500,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "name": "OtherFixed2",
+      "label": "עלות קבועה נוספת בחודש (שורה שמורה)",
+      "value": 0,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000,
+      "note": "כמו השורה השמורה למעלה, להוצאה קבועה חדשה (חייבת במע\"מ)"
+    },
+    {
+      "name": "EquipmentPurchases",
+      "label": "רכישת ציוד (מדפסות מדבקות, סורקים), כולל מע\"מ",
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 10000000,
+      "series": [
+        9000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "note": "רכוש קבוע: יוצא מהבנק, לא נכנס לרווח התפעולי (פחת לא מחושב) [לאמת מול רו\"ח]. דמי הבראה כבר בתוך עלות המעסיק"
+    },
+    {
+      "section": "מע\"מ, מס ומזומן"
+    },
+    {
+      "name": "VatRate",
+      "label": "שיעור מע\"מ",
+      "value": 0.18,
+      "unit": "%",
+      "format": "pct",
+      "note": "השיעור מינואר 2025. ההנחה: דיווח חודשי ותשלום בחודש שאחרי"
+    },
+    {
+      "name": "TaxAdvanceRate",
+      "label": "מקדמות מס הכנסה (מהמחזור)",
+      "value": 0.02,
+      "unit": "%",
+      "format": "pct",
+      "note": "השיעור נקבע ע\"י מס הכנסה לכל עסק. [להשלים מרו\"ח]"
+    },
+    {
+      "name": "BadDebtRate",
+      "label": "חובות של חנויות שלא ייגבו",
+      "value": 0.01,
+      "unit": "%",
+      "format": "pct"
+    },
+    {
+      "name": "OpeningCash",
+      "label": "מזומן בבנק בתחילת התקופה",
+      "value": 60000,
+      "unit": "₪",
+      "format": "money",
+      "min": -10000000,
+      "max": 100000000
+    },
+    {
+      "name": "CollectionLagMonths",
+      "label": "אחרי כמה חודשים החנויות משלמות",
+      "value": 1,
+      "unit": "חודשים",
+      "format": "int",
+      "min": 1,
+      "max": 2,
+      "note": "שוטף+30: חשבונית החודש נפרעת בחודש שאחריו = 1. שוטף+60 = 2"
+    },
+    {
+      "name": "OpeningReceivables",
+      "label": "חוב החנויות שנפרע בחודש הראשון (כולל מע\"מ)",
+      "value": 173000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "note": "בשוטף+30: חשבונית דצמבר"
+    },
+    {
+      "name": "OpeningReceivables2",
+      "label": "חוב שנפרע בחודש השני (רק כשמשלמים אחרי חודשיים)",
+      "value": 0,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "note": "בשוטף+60: חשבונית דצמבר"
+    },
+    {
+      "name": "OpeningPayroll",
+      "label": "משכורות החודש שלפני, שמשולמות בחודש הראשון",
+      "value": 85000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "note": "משכורת משולמת עד ה-9 בחודש שאחרי"
+    },
+    {
+      "name": "OpeningVatPayable",
+      "label": "מע\"מ של החודש שלפני",
+      "value": 17500,
+      "unit": "₪",
+      "format": "money",
+      "min": -10000000,
+      "max": 100000000
+    },
+    {
+      "name": "OpeningTaxAdvance",
+      "label": "מקדמת מס של החודש שלפני",
+      "value": 2900,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000
+    },
+    {
+      "name": "MinCashBuffer",
+      "label": "כרית ביטחון: מתחת לזה בבנק = התראה",
+      "value": 50000,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000
+    },
+    {
+      "name": "OverdraftMonthlyRate",
+      "label": "ריבית חודשית על מסגרת בשימוש",
+      "value": 0.0075,
+      "unit": "%",
+      "format": "pct",
+      "max": 0.05,
+      "note": "כ-9% בשנה. [להשלים מהבנק]"
+    },
+    {
+      "name": "DaysPerMonth",
+      "label": "ימים בחודש לחישוב ריבית",
+      "value": 30,
+      "unit": "ימים",
+      "format": "int",
+      "min": 28,
+      "max": 31
+    },
+    {
+      "section": "מתי בחודש הכסף זז (יום בחודש)"
+    },
+    {
+      "name": "CollectionDay",
+      "label": "יום שבו החנויות משלמות",
+      "value": 28,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31,
+      "note": "תשלום בסוף החודש = עד אז הבנק נושא את כל היציאות"
+    },
+    {
+      "name": "PayrollDay",
+      "label": "יום תשלום משכורות",
+      "value": 9,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "name": "SupplierDay",
+      "label": "יום תשלום לספקים (ממוצע)",
+      "value": 10,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "name": "VatDay",
+      "label": "יום תשלום מע\"מ",
+      "value": 15,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "name": "TaxDay",
+      "label": "יום תשלום מקדמות מס וביטוח לאומי",
+      "value": 15,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "name": "EquipmentDay",
+      "label": "יום תשלום על ציוד",
+      "value": 5,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "name": "OwnerDrawDay",
+      "label": "יום משיכת הבעלים",
+      "value": 1,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "section": "מה אם (רגישות)"
+    },
+    {
+      "name": "SensPriceStep",
+      "label": "שינוי מחיר למשלוח לבדיקה",
+      "value": 1,
+      "unit": "₪",
+      "format": "money2",
+      "min": -100,
+      "max": 100
+    },
+    {
+      "name": "SensVolumePct",
+      "label": "ירידה בנפח לבדיקה",
+      "value": 0.1,
+      "unit": "%",
+      "format": "pct"
+    },
+    {
+      "name": "SensCollectionDay",
+      "label": "יום גבייה לבדיקה (אם החנויות ישלמו מוקדם יותר)",
+      "value": 10,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
+    },
+    {
+      "section": "ביצוע בפועל (ממלאים בסוף כל חודש, מהנהלת החשבונות ומהבנק)"
+    },
+    {
+      "name": "ActualRevenue",
+      "label": "הכנסות בפועל (לפני מע\"מ)",
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "blank_series": true
+    },
+    {
+      "name": "ActualCosts",
+      "label": "עלויות בפועל (לפני מע\"מ)",
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "blank_series": true
+    },
+    {
+      "name": "ActualCash",
+      "label": "יתרה בבנק בפועל בסוף החודש",
+      "unit": "₪",
+      "format": "money",
+      "min": -100000000,
+      "max": 100000000,
+      "blank_series": true
+    },
+    {
+      "section": "בדיקות"
+    },
+    {
+      "name": "Tolerance",
+      "label": "סטייה מותרת בבדיקות התקינות (עיגול)",
+      "value": 0.01,
+      "unit": "₪",
+      "format": "money2",
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "calcs": [
+    {
+      "section": "נפח, קיבולת והכנסות"
+    },
+    {
+      "name": "Deliveries",
+      "label": "משלוחים בחודש",
+      "unit": "משלוחים",
+      "format": "int",
+      "formula": "=ROUND(DeliveriesPerDay*{WorkingDays}*{Seasonality},0)"
+    },
+    {
+      "name": "FailedDeliveries",
+      "label": "ניסיונות מסירה חוזרים",
+      "unit": "משלוחים",
+      "format": "int",
+      "formula": "=ROUND({Deliveries}*FailedRate,0)"
+    },
+    {
+      "name": "DriversNeeded",
+      "label": "נהגים שצריך לפי הקיבולת",
+      "unit": "נהגים",
+      "format": "int",
+      "total": "max",
+      "formula": "=IF({WorkingDays}=0,0,ROUNDUP({Deliveries}/{WorkingDays}/MaxPerDriverDay,0))"
+    },
+    {
+      "name": "ActiveDrivers",
+      "label": "נהגים בפועל (קבועים + תוספת בעומס)",
+      "unit": "נהגים",
+      "format": "int",
+      "total": "max",
+      "formula": "=MAX(Drivers,{DriversNeeded})"
+    },
+    {
+      "name": "Revenue",
+      "label": "הכנסות (לפני מע\"מ)",
+      "unit": "₪",
+      "format": "money",
+      "bold": true,
+      "formula": "={Deliveries}*PricePerDelivery"
+    },
+    {
+      "section": "עלויות משתנות"
+    },
+    {
+      "name": "FuelCost",
+      "label": "דלק",
+      "unit": "₪",
+      "formula": "={Deliveries}*FuelPerDelivery"
+    },
+    {
+      "name": "RedeliveryCostTotal",
+      "label": "ניסיונות מסירה חוזרים",
+      "unit": "₪",
+      "formula": "={FailedDeliveries}*RedeliveryCost"
+    },
+    {
+      "name": "MessagingCost",
+      "label": "הודעות לנמענים",
+      "unit": "₪",
+      "formula": "={Deliveries}*MessagingPerDelivery"
+    },
+    {
+      "name": "SuppliesCost",
+      "label": "מדבקות וחומרים",
+      "unit": "₪",
+      "formula": "={Deliveries}*SuppliesPerDelivery"
+    },
+    {
+      "name": "OtherVarCost",
+      "label": "עלות משתנה נוספת (שורה שמורה)",
+      "unit": "₪",
+      "formula": "={Deliveries}*OtherVarPerDelivery"
+    },
+    {
+      "name": "LostParcelCost",
+      "label": "פיצוי על חבילות שאבדו (בלי מע\"מ)",
+      "unit": "₪",
+      "formula": "={Deliveries}*LostParcelRate*CompensationPerParcel"
+    },
+    {
+      "name": "BadDebt",
+      "label": "חובות שלא ייגבו",
+      "unit": "₪",
+      "formula": "={Revenue}*BadDebtRate"
+    },
+    {
+      "name": "VariableCosts",
+      "label": "סה\"כ עלויות משתנות",
+      "unit": "₪",
+      "bold": true,
+      "formula": "=SUM({FuelCost..BadDebt})"
+    },
+    {
+      "section": "עלויות קבועות"
+    },
+    {
+      "name": "PayrollCost",
+      "label": "שכר כולל עלות מעסיק",
+      "unit": "₪",
+      "formula": "=({ActiveDrivers}*DriverGrossSalary+WarehouseStaffSalary)*(1+EmployerCostRate)"
+    },
+    {
+      "name": "LeaseCost",
+      "label": "ליסינג רכבים קבועים",
+      "unit": "₪",
+      "formula": "=Drivers*VehicleLeasePerDriver"
+    },
+    {
+      "name": "ExtraVehicleCost",
+      "label": "רכב שכור לנהגים נוספים בעונה",
+      "unit": "₪",
+      "formula": "=({ActiveDrivers}-Drivers)*SeasonalVehicleRent"
+    },
+    {
+      "name": "InsuranceCost",
+      "label": "ביטוח רכבים קבועים",
+      "unit": "₪",
+      "formula": "=Drivers*VehicleInsurancePerDriver"
+    },
+    {
+      "name": "OverheadCost",
+      "label": "מחסן, תוכנות, הנהלת חשבונות ושונות",
+      "unit": "₪",
+      "formula": "=WarehouseRent+SoftwareMonthly+AccountingMonthly+OtherFixed+OtherFixed2"
+    },
+    {
+      "name": "FixedCosts",
+      "label": "סה\"כ עלויות קבועות",
+      "unit": "₪",
+      "bold": true,
+      "formula": "=SUM({PayrollCost..OverheadCost})"
+    },
+    {
+      "section": "רווח"
+    },
+    {
+      "name": "TotalCosts",
+      "label": "סה\"כ עלויות",
+      "unit": "₪",
+      "bold": true,
+      "formula": "={VariableCosts}+{FixedCosts}"
+    },
+    {
+      "name": "OperatingProfit",
+      "label": "רווח תפעולי (לפני מס הכנסה ומשיכות)",
+      "unit": "₪",
+      "bold": true,
+      "formula": "={Revenue}-{TotalCosts}"
+    },
+    {
+      "name": "OperatingMargin",
+      "label": "שיעור רווח תפעולי",
+      "unit": "%",
+      "format": "pct",
+      "total": "none",
+      "formula": "=IF({Revenue}=0,0,{OperatingProfit}/{Revenue})"
+    },
+    {
+      "section": "מע\"מ"
+    },
+    {
+      "name": "OutputVat",
+      "label": "מע\"מ עסקאות (על ההכנסות)",
+      "unit": "₪",
+      "formula": "={Revenue}*VatRate"
+    },
+    {
+      "name": "VatableCosts",
+      "label": "הוצאות שחייבות במע\"מ (עלויות משתנות חוץ מחובות ופיצויים, ליסינג, רכב שכור ותקורה)",
+      "unit": "₪",
+      "formula": "={VariableCosts}-{BadDebt}-{LostParcelCost}+{LeaseCost}+{ExtraVehicleCost}+{OverheadCost}"
+    },
+    {
+      "name": "InputVat",
+      "label": "מע\"מ תשומות (כולל על ציוד)",
+      "unit": "₪",
+      "formula": "={VatableCosts}*VatRate+{EquipmentPurchases}*VatRate/(1+VatRate)"
+    },
+    {
+      "name": "NetVat",
+      "label": "מע\"מ לתשלום על החודש",
+      "unit": "₪",
+      "formula": "={OutputVat}-{InputVat}"
+    },
+    {
+      "section": "תזרים מזומנים (מה באמת נכנס ויוצא מהבנק)"
+    },
+    {
+      "name": "Collections",
+      "label": "גבייה מחנויות (כולל מע\"מ, פחות חובות אבודים)",
+      "unit": "₪",
+      "formula": "=IF(CollectionLagMonths=1,{Revenue[-1]},{Revenue[-2]})*(1+VatRate)*(1-BadDebtRate)",
+      "first": [
+        "=OpeningReceivables*(1-BadDebtRate)",
+        "=IF(CollectionLagMonths=1,{Revenue[-1]}*(1+VatRate),OpeningReceivables2)*(1-BadDebtRate)"
+      ]
+    },
+    {
+      "name": "PayrollPaid",
+      "label": "תשלום משכורות (של החודש הקודם)",
+      "unit": "₪",
+      "formula": "={PayrollCost[-1]}",
+      "first": "=OpeningPayroll"
+    },
+    {
+      "name": "SupplierPayments",
+      "label": "תשלום לספקים (כולל מע\"מ)",
+      "unit": "₪",
+      "formula": "={VatableCosts}*(1+VatRate)+{InsuranceCost}+{LostParcelCost}"
+    },
+    {
+      "name": "VatPaid",
+      "label": "תשלום מע\"מ (של החודש הקודם)",
+      "unit": "₪",
+      "formula": "={NetVat[-1]}",
+      "first": "=OpeningVatPayable"
+    },
+    {
+      "name": "TaxAdvancePaid",
+      "label": "מקדמת מס הכנסה (על מחזור החודש הקודם)",
+      "unit": "₪",
+      "formula": "={Revenue[-1]}*TaxAdvanceRate",
+      "first": "=OpeningTaxAdvance"
+    },
+    {
+      "name": "EquipmentPaid",
+      "label": "רכישת ציוד",
+      "unit": "₪",
+      "formula": "={EquipmentPurchases}"
+    },
+    {
+      "name": "InterestPaid",
+      "label": "ריבית על המסגרת (לפי ימים: השפל עד הגבייה, ויתרת הסוף אחריה)",
+      "unit": "₪",
+      "formula": "=OverdraftMonthlyRate*(MAX(0,-{IntraMonthLow[-1]})*{LowShare[-1]}+MAX(0,-{ClosingCash[-1]})*(1-{LowShare[-1]}))",
+      "first": "=OverdraftMonthlyRate*MAX(0,-OpeningCash)"
+    },
+    {
+      "name": "OwnerNIPaid",
+      "label": "ביטוח לאומי ומס בריאות של הבעלים",
+      "unit": "₪",
+      "formula": "=OwnerNI"
+    },
+    {
+      "name": "OwnerDrawPaid",
+      "label": "משיכת הבעלים",
+      "unit": "₪",
+      "formula": "=OwnerDraw"
+    },
+    {
+      "name": "NetCashFlow",
+      "label": "תזרים נטו בחודש",
+      "unit": "₪",
+      "bold": true,
+      "formula": "={Collections}-SUM({PayrollPaid..OwnerDrawPaid})"
+    },
+    {
+      "name": "OpeningCashBal",
+      "label": "יתרה בתחילת החודש",
+      "unit": "₪",
+      "total": "first",
+      "formula": "={ClosingCash[-1]}",
+      "first": "=OpeningCash"
+    },
+    {
+      "name": "ClosingCash",
+      "label": "יתרה בסוף החודש",
+      "unit": "₪",
+      "bold": true,
+      "total": "last",
+      "formula": "={OpeningCashBal}+{NetCashFlow}"
+    },
+    {
+      "name": "PreCollectionOut",
+      "label": "יוצא מהבנק לפני שהחנויות משלמות (בלי ריבית)",
+      "unit": "₪",
+      "formula": "={PayrollPaid}*(PayrollDay<CollectionDay)+{SupplierPayments}*(SupplierDay<CollectionDay)+{VatPaid}*(VatDay<CollectionDay)+({TaxAdvancePaid}+{OwnerNIPaid})*(TaxDay<CollectionDay)+{EquipmentPaid}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid}*(OwnerDrawDay<CollectionDay)"
+    },
+    {
+      "name": "AvgOutDay",
+      "label": "היום הממוצע שבו הכסף יוצא (משוקלל בסכומים)",
+      "unit": "יום",
+      "format": "num",
+      "total": "none",
+      "formula": "=IF({PreCollectionOut}=0,CollectionDay,({PayrollPaid}*(PayrollDay<CollectionDay)*PayrollDay+{SupplierPayments}*(SupplierDay<CollectionDay)*SupplierDay+{VatPaid}*(VatDay<CollectionDay)*VatDay+({TaxAdvancePaid}+{OwnerNIPaid})*(TaxDay<CollectionDay)*TaxDay+{EquipmentPaid}*(EquipmentDay<CollectionDay)*EquipmentDay+{OwnerDrawPaid}*(OwnerDrawDay<CollectionDay)*OwnerDrawDay)/{PreCollectionOut})"
+    },
+    {
+      "name": "LowShare",
+      "label": "חלק מהחודש שבו הבנק בשפל",
+      "unit": "%",
+      "format": "pct",
+      "total": "none",
+      "formula": "=MAX(0,CollectionDay-{AvgOutDay})/DaysPerMonth"
+    },
+    {
+      "name": "IntraMonthLow",
+      "label": "הנקודה הנמוכה בבנק בתוך החודש (לפני שהחנויות משלמות)",
+      "unit": "₪",
+      "bold": true,
+      "total": "min",
+      "formula": "=MIN({ClosingCash},{OpeningCashBal}-{PreCollectionOut}-{InterestPaid})"
+    },
+    {
+      "name": "BufferLine",
+      "label": "כרית ביטחון",
+      "unit": "₪",
+      "total": "none",
+      "formula": "=MinCashBuffer"
+    },
+    {
+      "name": "BelowBuffer",
+      "label": "חודש שבו הבנק יורד מתחת לכרית (1 = כן)",
+      "unit": "חודשים",
+      "format": "int",
+      "formula": "=IF({IntraMonthLow}<MinCashBuffer,1,0)"
+    }
+  ],
+  "outputs": {
+    "kpis": [
+      {
+        "label": "הכנסות בשנה (לפני מע\"מ)",
+        "name": "Kpi_Revenue",
+        "formula": "={Revenue:total}",
+        "format": "money"
+      },
+      {
+        "label": "רווח תפעולי בשנה (לפני ריבית, מס ומשיכות)",
+        "name": "Kpi_Profit",
+        "formula": "={OperatingProfit:total}",
+        "format": "money"
+      },
+      {
+        "label": "שיעור רווח תפעולי",
+        "name": "Kpi_Margin",
+        "formula": "=IF({Revenue:total}=0,0,{OperatingProfit:total}/{Revenue:total})",
+        "format": "pct"
+      },
+      {
+        "label": "רווח ממוצע לכל משלוח",
+        "name": "Kpi_PerDelivery",
+        "formula": "=IF({Deliveries:total}=0,0,{OperatingProfit:total}/{Deliveries:total})",
+        "format": "money2"
+      },
+      {
+        "label": "הנקודה הנמוכה בבנק בשנה (בתוך החודש)",
+        "name": "Kpi_MinCash",
+        "formula": "=MIN({IntraMonthLow:row})",
+        "format": "money"
+      },
+      {
+        "label": "החודש של הנקודה הנמוכה",
+        "name": "Kpi_LowMonth",
+        "formula": "=INDEX({Periods:row},MATCH(MIN({IntraMonthLow:row}),{IntraMonthLow:row},0))",
+        "format": "month"
+      },
+      {
+        "label": "חודשים שבהם הבנק יורד מתחת לכרית",
+        "name": "Kpi_BelowBuffer",
+        "formula": "={BelowBuffer:total}",
+        "format": "int"
+      },
+      {
+        "label": "מסגרת אשראי שצריך כדי לא לרדת מתחת לכרית",
+        "name": "Kpi_Credit",
+        "formula": "=MAX(0,MinCashBuffer-MIN({IntraMonthLow:row}))",
+        "format": "money"
+      },
+      {
+        "label": "ריבית על המסגרת בשנה",
+        "name": "Kpi_Interest",
+        "formula": "={InterestPaid:total}",
+        "format": "money"
+      },
+      {
+        "label": "נהגים בחודש הכי עמוס",
+        "name": "Kpi_PeakDrivers",
+        "formula": "={ActiveDrivers:total}",
+        "format": "int"
+      },
+      {
+        "section": "מה זה אומר (מתעדכן לבד)"
+      },
+      {
+        "label": "חודש בהפסד?",
+        "format": "text",
+        "formula": "=IF(MIN({OperatingProfit:row})<0,\"כן: \"&COUNTIF({OperatingProfit:row},\"<0\")&\" חודשים. החלש: \"&TEXT(INDEX({Periods:row},MATCH(MIN({OperatingProfit:row}),{OperatingProfit:row},0)),\"mm/yyyy\")&\". לתכנן את המזומן מראש\",\"לא, כל החודשים ברווח\")"
+      },
+      {
+        "label": "המזומן מספיק?",
+        "format": "text",
+        "formula": "=IF(Kpi_BelowBuffer>0,\"לא: ב-\"&Kpi_BelowBuffer&\" חודשים הבנק יורד מתחת לכרית לפני שהחנויות משלמות. צריך מסגרת של \"&TEXT(Kpi_Credit,\"#,##0\")&\" ₪ (ריבית בערך \"&TEXT(Kpi_Interest,\"#,##0\")&\" ₪ בשנה), או להקטין משיכות\",\"כן, עם מרווח\")",
+        "name": "Kpi_CashText"
+      },
+      {
+        "label": "הבעלים מושכים יותר מהרווח?",
+        "format": "text",
+        "formula": "=IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,\"כן: משיכות וביטוח לאומי \"&TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\")&\" ₪ בשנה, מול רווח אחרי מקדמות וריבית של \"&TEXT(Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,\"#,##0\")&\" ₪. ההפרש יוצא מהמזומן\",\"לא, הרווח מכסה את המשיכות\")",
+        "name": "Kpi_DrawText"
+      },
+      {
+        "label": "נקודת איזון: משלוחים בחודש שמכסים את ההוצאות הקבועות",
+        "name": "Kpi_BreakEven",
+        "formula": "=IF({Deliveries:total}=0,0,IF(PricePerDelivery<={VariableCosts:total}/{Deliveries:total},0,ROUNDUP(({FixedCosts:total}/COUNT({FixedCosts:row}))/(PricePerDelivery-{VariableCosts:total}/{Deliveries:total}),0)))",
+        "format": "int",
+        "note": "0 = המחיר לא מכסה אפילו את העלות המשתנה"
+      },
+      {
+        "section": "מה אם"
+      },
+      {
+        "label": "אם המחיר למשלוח עולה (בסכום שבהנחות): רווח שנתי",
+        "name": "Kpi_SensPrice",
+        "formula": "={OperatingProfit:total}+{Deliveries:total}*SensPriceStep*(1-BadDebtRate)",
+        "format": "money",
+        "note": "בערך: בלי שינוי בנפח"
+      },
+      {
+        "label": "אם הנפח יורד (באחוז שבהנחות): רווח שנתי",
+        "name": "Kpi_SensVolume",
+        "formula": "={OperatingProfit:total}-SensVolumePct*({Revenue:total}-{VariableCosts:total})",
+        "format": "money",
+        "note": "בערך: בלי לצמצם נהגים"
+      },
+      {
+        "label": "אם החנויות משלמות ביום שבהנחות (ולא בסוף החודש): מסגרת שצריך",
+        "name": "Kpi_CreditIfEarly",
+        "formula": "=MAX(0,MinCashBuffer-SUMPRODUCT(MIN({ClosingCash:row},{OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<SensCollectionDay)+{SupplierPayments:row}*(SupplierDay<SensCollectionDay)+{VatPaid:row}*(VatDay<SensCollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<SensCollectionDay)+{EquipmentPaid:row}*(EquipmentDay<SensCollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<SensCollectionDay)))))",
+        "format": "money",
+        "note": "בערך: בלי שינוי בריבית. ההנחה הכי רגישה במודל"
+      },
+      {
+        "section": "תקציב מול ביצוע, מצטבר"
+      },
+      {
+        "label": "חודשים שהוזן להם ביצוע",
+        "name": "Kpi_ActualMonths",
+        "formula": "=COUNT({ActualRevenue:row})",
+        "format": "int"
+      },
+      {
+        "label": "סטייה מצטברת בהכנסות",
+        "formula": "=IF(COUNT({ActualRevenue:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_RevenueVar:row}))",
+        "format": "money",
+        "name": "Kpi_RevVarYtd"
+      },
+      {
+        "label": "סטייה מצטברת בעלויות",
+        "formula": "=IF(COUNT({ActualCosts:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_CostVar:row}))",
+        "format": "money",
+        "name": "Kpi_CostVarYtd"
+      }
+    ],
+    "table_title": "חודש אחרי חודש",
+    "table": [
+      {
+        "label": "הכנסות",
+        "ref": "Revenue"
+      },
+      {
+        "label": "עלויות משתנות",
+        "ref": "VariableCosts"
+      },
+      {
+        "label": "עלויות קבועות",
+        "ref": "FixedCosts"
+      },
+      {
+        "label": "רווח תפעולי",
+        "ref": "OperatingProfit",
+        "bold": true
+      },
+      {
+        "label": "נהגים בפועל",
+        "ref": "ActiveDrivers",
+        "unit": "נהגים",
+        "format": "int",
+        "total": "max"
+      },
+      {
+        "label": "תזרים נטו",
+        "ref": "NetCashFlow"
+      },
+      {
+        "label": "יתרה בבנק בסוף החודש",
+        "ref": "ClosingCash",
+        "total": "last",
+        "bold": true
+      },
+      {
+        "label": "הנקודה הנמוכה בחודש",
+        "ref": "IntraMonthLow",
+        "total": "min",
+        "bold": true
+      },
+      {
+        "label": "כרית ביטחון",
+        "ref": "BufferLine",
+        "total": "none"
+      },
+      {
+        "section": "תקציב מול ביצוע (מתמלא כשמזינים ביצוע בלשונית ההנחות)"
+      },
+      {
+        "label": "הכנסות בפועל",
+        "name": "Out_ActualRevenue",
+        "formula": "=IF(ISBLANK({ActualRevenue}),\"\",{ActualRevenue})",
+        "total": "none"
+      },
+      {
+        "label": "סטייה בהכנסות (בפועל פחות תקציב)",
+        "name": "Out_RevenueVar",
+        "formula": "=IF(ISBLANK({ActualRevenue}),\"\",{ActualRevenue}-{Revenue})",
+        "total": "none"
+      },
+      {
+        "label": "סטייה בעלויות (בפועל פחות תקציב)",
+        "name": "Out_CostVar",
+        "formula": "=IF(ISBLANK({ActualCosts}),\"\",{ActualCosts}-{TotalCosts})",
+        "total": "none"
+      },
+      {
+        "label": "סטייה ביתרה בבנק",
+        "name": "Out_CashVar",
+        "formula": "=IF(ISBLANK({ActualCash}),\"\",{ActualCash}-{ClosingCash})",
+        "total": "none"
+      }
+    ],
+    "chart": {
+      "title": "יתרה בבנק: סוף החודש, הנקודה הנמוכה בתוך החודש, וכרית הביטחון",
+      "rows": [
+        "ClosingCash",
+        "IntraMonthLow",
+        "BufferLine"
+      ],
+      "type": "line",
+      "title_formula": "=\"המסקנה: \"&IF(MIN({IntraMonthLow:row})<MinCashBuffer,\"הבנק יורד עד \"&TEXT(MIN({IntraMonthLow:row}),\"#,##0\")&\" ₪ ב-\"&TEXT(INDEX({Periods:row},MATCH(MIN({IntraMonthLow:row}),{IntraMonthLow:row},0)),\"mm/yyyy\")&\" (לפני שהחנויות משלמות): צריך מסגרת של \"&TEXT(MAX(0,MinCashBuffer-MIN({IntraMonthLow:row})),\"#,##0\")&\" ₪ או פחות משיכות\",\"הבנק לא יורד מתחת לכרית\")"
+    }
+  },
+  "checks": [
+    {
+      "label": "הכנסות השנה = משלוחים בשנה × מחיר (חישוב עצמאי מההנחות)",
+      "formula": "=ABS({Revenue:total}-{Deliveries:total}*PricePerDelivery)<=Tolerance"
+    },
+    {
+      "label": "משלוחים בשנה = משלוחים ביום × סכום (ימי עבודה × עונתיות), עד עיגול של חצי משלוח בחודש",
+      "formula": "=ABS({Deliveries:total}-DeliveriesPerDay*SUMPRODUCT({WorkingDays:row},{Seasonality:row}))<=COUNT({Deliveries:row})"
+    },
+    {
+      "label": "עלויות משתנות בשנה = חישוב עצמאי מהעלות למשלוח",
+      "formula": "=ABS({VariableCosts:total}-({Deliveries:total}*(FuelPerDelivery+MessagingPerDelivery+SuppliesPerDelivery+OtherVarPerDelivery+LostParcelRate*CompensationPerParcel)+{FailedDeliveries:total}*RedeliveryCost+{Revenue:total}*BadDebtRate))<=Tolerance"
+    },
+    {
+      "label": "עלויות קבועות בשנה = חישוב עצמאי מחודשי-נהג ומההנחות",
+      "formula": "=ABS({FixedCosts:total}-(SUM({ActiveDrivers:row})*DriverGrossSalary*(1+EmployerCostRate)+SUMPRODUCT({ActiveDrivers:row}-Drivers)*SeasonalVehicleRent+COUNT({ActiveDrivers:row})*(WarehouseStaffSalary*(1+EmployerCostRate)+Drivers*(VehicleLeasePerDriver+VehicleInsurancePerDriver)+WarehouseRent+SoftwareMonthly+AccountingMonthly+OtherFixed+OtherFixed2)))<=Tolerance"
+    },
+    {
+      "label": "רווח שנתי = הכנסות פחות עלויות",
+      "formula": "=ABS({OperatingProfit:total}-({Revenue:total}-{TotalCosts:total}))<=Tolerance"
+    },
+    {
+      "label": "גשר מזומנים: יתרת סוף = יתרת פתיחה + תזרים נטו של כל התקופה",
+      "formula": "=ABS({ClosingCash:last}-(OpeningCash+{NetCashFlow:total}))<=Tolerance"
+    },
+    {
+      "label": "גבייה: (חוב פתיחה + הכנסות כולל מע\"מ − מה שעוד לא נפרע) × (1 − חובות אבודים) = נגבה",
+      "formula": "=ABS((OpeningReceivables+IF(CollectionLagMonths=1,0,OpeningReceivables2)+({Revenue:total}-IF(CollectionLagMonths=1,{Revenue:last},{Revenue:last}+INDEX({Revenue:row},COUNT({Revenue:row})-1)))*(1+VatRate))*(1-BadDebtRate)-{Collections:total})<=Tolerance"
+    },
+    {
+      "label": "מע\"מ: חוב פתיחה + מע\"מ התקופה = שולם + חוב סגירה; עסקאות = הכנסות × שיעור; תשומות = שיעור × הוצאות חייבות + החלק של הציוד; נטו = עסקאות − תשומות",
+      "formula": "=AND(ABS(OpeningVatPayable+{NetVat:total}-{VatPaid:total}-{NetVat:last})<=Tolerance,ABS({OutputVat:total}-{Revenue:total}*VatRate)<=Tolerance,ABS({InputVat:total}-VatRate*({FuelCost:total}+{RedeliveryCostTotal:total}+{MessagingCost:total}+{SuppliesCost:total}+{OtherVarCost:total}+{LeaseCost:total}+{ExtraVehicleCost:total}+{OverheadCost:total})-SUM({EquipmentPurchases:row})*VatRate/(1+VatRate))<=Tolerance,ABS({NetVat:total}-({OutputVat:total}-{InputVat:total}))<=Tolerance)"
+    },
+    {
+      "label": "שכר: חוב פתיחה + שכר התקופה = שולם + חוב סגירה",
+      "formula": "=ABS(OpeningPayroll+{PayrollCost:total}-{PayrollPaid:total}-{PayrollCost:last})<=Tolerance"
+    },
+    {
+      "label": "מקדמות מס: חוב פתיחה + מקדמות על מחזור התקופה = שולם + חוב סגירה",
+      "formula": "=ABS(OpeningTaxAdvance+({Revenue:total}-{Revenue:last})*TaxAdvanceRate-{TaxAdvancePaid:total})<=Tolerance"
+    },
+    {
+      "label": "חודשים מתחת לכרית = ספירה עצמאית של שפלים מתחת לכרית",
+      "formula": "={BelowBuffer:total}=COUNTIF({IntraMonthLow:row},\"<\"&MinCashBuffer)"
+    },
+    {
+      "label": "הטבלה בלשונית התוצאות זהה לחישובים בכל חודש",
+      "formula": "=SUMPRODUCT(ABS({Out_Revenue:row}-{Revenue:row}))+SUMPRODUCT(ABS({Out_VariableCosts:row}-{VariableCosts:row}))+SUMPRODUCT(ABS({Out_FixedCosts:row}-{FixedCosts:row}))+SUMPRODUCT(ABS({Out_OperatingProfit:row}-{OperatingProfit:row}))+SUMPRODUCT(ABS({Out_NetCashFlow:row}-{NetCashFlow:row}))+SUMPRODUCT(ABS({Out_ClosingCash:row}-{ClosingCash:row}))+SUMPRODUCT(ABS({Out_IntraMonthLow:row}-{IntraMonthLow:row}))+SUMPRODUCT(ABS({Out_ActiveDrivers:row}-{ActiveDrivers:row}))+SUMPRODUCT(ABS({Out_BufferLine:row}-MinCashBuffer))+SUMPRODUCT(ABS({BufferLine:row}-MinCashBuffer))<=Tolerance"
+    },
+    {
+      "label": "סבירות: אף חודש לא דורש יותר משלוחים לנהג ממה שנהג מספיק",
+      "formula": "=SUMPRODUCT(--({Deliveries:row}>{ActiveDrivers:row}*{WorkingDays:row}*MaxPerDriverDay))=0"
+    },
+    {
+      "label": "סבירות: אין חודש עם משלוחים, ימי עבודה או נהגים שליליים",
+      "formula": "=AND(MIN({Deliveries:row})>=0,MIN({WorkingDays:row})>=0,MIN({ActiveDrivers:row})>=0)"
+    },
+    {
+      "label": "תזרים: יציאות השנה = חישוב עצמאי מסכומי העלויות, המע\"מ, המקדמות, הריבית והמשיכות",
+      "formula": "=ABS(({Collections:total}-{NetCashFlow:total})-({PayrollPaid:total}+{SupplierPayments:total}+{VatPaid:total}+{TaxAdvancePaid:total}+{InterestPaid:total}+SUM({EquipmentPurchases:row})+COUNT({Revenue:row})*(OwnerNI+OwnerDraw)))<=Tolerance"
+    },
+    {
+      "label": "ספקים: תשלום לספקים = כל העלויות חוץ משכר וחובות אבודים, ועוד מע\"מ תשומות (בלי החלק של הציוד)",
+      "formula": "=ABS({SupplierPayments:total}-({TotalCosts:total}-{PayrollCost:total}-{BadDebt:total}+{InputVat:total}-SUM({EquipmentPurchases:row})*VatRate/(1+VatRate)))<=Tolerance"
+    },
+    {
+      "label": "ניסיונות חוזרים בשנה = משלוחים × אחוז כישלון (עד עיגול)",
+      "formula": "=ABS({FailedDeliveries:total}-{Deliveries:total}*FailedRate)<=COUNT({Deliveries:row})"
+    },
+    {
+      "label": "נהגים: בכל חודש בדיוק כמה שצריך (מספיק, ואחד פחות כבר לא היה מספיק), ולא פחות מהקבועים",
+      "formula": "=AND(SUMPRODUCT(--({DriversNeeded:row}*{WorkingDays:row}*MaxPerDriverDay<{Deliveries:row}))=0,SUMPRODUCT(--(({DriversNeeded:row}-1)*{WorkingDays:row}*MaxPerDriverDay>={Deliveries:row}),--({Deliveries:row}>0))=0,SUMPRODUCT(--({ActiveDrivers:row}<Drivers))=0,SUMPRODUCT(--({ActiveDrivers:row}>Drivers),--({ActiveDrivers:row}<>{DriversNeeded:row}))=0)"
+    },
+    {
+      "label": "שיעור רווח בכל חודש × הכנסות = רווח",
+      "formula": "=SUMPRODUCT(ABS({OperatingMargin:row}*{Revenue:row}-{OperatingProfit:row}))<=Tolerance"
+    },
+    {
+      "label": "השפל בתוך החודש = המינימום בין יתרת הסוף לפתיחה פחות מה שיוצא לפני הגבייה (חישוב וקטורי עצמאי)",
+      "formula": "=AND(SUMPRODUCT(ABS({PreCollectionOut:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))))<=Tolerance,SUMPRODUCT(ABS(({ClosingCash:row}+({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))-{InterestPaid:row})-ABS({ClosingCash:row}-({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))-{InterestPaid:row})))-({IntraMonthLow:row}+{IntraMonthLow:row})))<=Tolerance)"
+    },
+    {
+      "label": "ריבית: חישוב עצמאי מהשפל, מיתרת הסוף ומחלק החודש (וקטורי, חודש קודם מול חודש נוכחי)",
+      "formula": "=ABS(({InterestPaid:total}+{InterestPaid:total})-OverdraftMonthlyRate*(SUMPRODUCT((ABS({IntraMonthLow:head})-{IntraMonthLow:head})*{LowShare:head}+(ABS({ClosingCash:head})-{ClosingCash:head})*(1-{LowShare:head}))+ABS(OpeningCash)-OpeningCash))<=Tolerance"
+    },
+    {
+      "label": "הדשבורד: כל מספר בראש העמוד שווה לחישוב עצמאי שלו",
+      "formula": "=AND(ABS(Kpi_Revenue-SUMPRODUCT({Deliveries:row})*PricePerDelivery)<=Tolerance,ABS(Kpi_Profit-({Revenue:total}-{TotalCosts:total}))<=Tolerance,ABS(Kpi_Margin*Kpi_Revenue-Kpi_Profit)<=Tolerance,ABS(Kpi_PerDelivery*{Deliveries:total}-Kpi_Profit)<=Tolerance,Kpi_MinCash=MIN({IntraMonthLow:row}),Kpi_LowMonth=INDEX({Periods:row},MATCH(Kpi_MinCash,{IntraMonthLow:row},0)),Kpi_BelowBuffer=COUNTIF({IntraMonthLow:row},\"<\"&MinCashBuffer),ABS(Kpi_Credit-MAX(0,MinCashBuffer-Kpi_MinCash))<=Tolerance,ABS(Kpi_Interest-SUM({InterestPaid:row}))<=Tolerance,Kpi_PeakDrivers=MAX({ActiveDrivers:row}),Kpi_ActualMonths=COUNT({ActualRevenue:row}))"
+    },
+    {
+      "label": "הדשבורד: נקודת איזון ו'מה אם' (בדיקה הפוכה)",
+      "formula": "=AND(OR(Kpi_BreakEven=0,AND(Kpi_BreakEven*(PricePerDelivery-{VariableCosts:total}/{Deliveries:total})>={FixedCosts:total}/COUNT({FixedCosts:row}),(Kpi_BreakEven-1)*(PricePerDelivery-{VariableCosts:total}/{Deliveries:total})<{FixedCosts:total}/COUNT({FixedCosts:row}))),ABS(Kpi_SensPrice-Kpi_Profit-{Deliveries:total}*SensPriceStep*(1-BadDebtRate))<=Tolerance,ABS(Kpi_Profit-Kpi_SensVolume-SensVolumePct*({Revenue:total}-{VariableCosts:total}))<=Tolerance)"
+    },
+    {
+      "label": "המשפטים בדשבורד מציגים בדיוק את המספרים שלמעלה (מסגרת, ריבית, חודשים, משיכות)",
+      "formula": "=AND(IF(Kpi_BelowBuffer>0,AND(ISNUMBER(SEARCH(TEXT(Kpi_Credit,\"#,##0\"),Kpi_CashText)),ISNUMBER(SEARCH(TEXT(Kpi_Interest,\"#,##0\"),Kpi_CashText)),ISNUMBER(SEARCH(Kpi_BelowBuffer&\" חודשים\",Kpi_CashText))),Kpi_CashText=\"כן, עם מרווח\"),IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,ISNUMBER(SEARCH(TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\"),Kpi_DrawText)),Kpi_DrawText=\"לא, הרווח מכסה את המשיכות\"))"
+    },
+    {
+      "label": "תקציב מול ביצוע: בכל חודש שהוזן, סטייה = בפועל פחות תקציב (הכנסות, כל העלויות, יתרת סוף החודש)",
+      "formula": "=SUMPRODUCT(ISNUMBER({ActualRevenue:row})*ABS(N(+{Out_RevenueVar:row})-({ActualRevenue:row}-{Revenue:row})))+SUMPRODUCT(ISNUMBER({ActualRevenue:row})*ABS(N(+{Out_ActualRevenue:row})-{ActualRevenue:row}))+SUMPRODUCT(ISNUMBER({ActualCosts:row})*ABS(N(+{Out_CostVar:row})-({ActualCosts:row}-{TotalCosts:row})))+SUMPRODUCT(ISNUMBER({ActualCash:row})*ABS(N(+{Out_CashVar:row})-({ActualCash:row}-{ClosingCash:row})))<=Tolerance"
+    },
+    {
+      "label": "מה אם יום הגבייה: המסגרת = כרית פחות השפל הנמוך מבין סוף החודש ומה שיוצא לפני יום הגבייה החדש",
+      "formula": "=ABS(Kpi_CreditIfEarly-MAX(0,MinCashBuffer-MIN(MIN({ClosingCash:row}),SUMPRODUCT(MIN({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<SensCollectionDay)+{SupplierPayments:row}*(SupplierDay<SensCollectionDay)+{VatPaid:row}*(VatDay<SensCollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<SensCollectionDay)+{EquipmentPaid:row}*(EquipmentDay<SensCollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<SensCollectionDay)))))))<=Tolerance"
+    },
+    {
+      "label": "הדשבורד: סטייה מצטברת = סכום הסטיות החודשיות",
+      "formula": "=AND(IF(Kpi_ActualMonths=0,Kpi_RevVarYtd=\"עוד לא הוזן ביצוע\",ABS(N(+Kpi_RevVarYtd)-SUMPRODUCT(ISNUMBER({ActualRevenue:row})*({ActualRevenue:row}-{Revenue:row})))<=Tolerance),IF(COUNT({ActualCosts:row})=0,Kpi_CostVarYtd=\"עוד לא הוזן ביצוע\",ABS(N(+Kpi_CostVarYtd)-SUMPRODUCT(ISNUMBER({ActualCosts:row})*({ActualCosts:row}-{TotalCosts:row})))<=Tolerance))"
+    },
+    {
+      "label": "יום יציאה ממוצע וחלק החודש בשפל = חישוב עצמאי מימי התשלום",
+      "formula": "=AND(SUMPRODUCT(ABS({AvgOutDay:row}*{PreCollectionOut:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)*PayrollDay+{SupplierPayments:row}*(SupplierDay<CollectionDay)*SupplierDay+{VatPaid:row}*(VatDay<CollectionDay)*VatDay+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)*TaxDay+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)*EquipmentDay+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay)*OwnerDrawDay)))<=Tolerance,SUMPRODUCT(ABS(({LowShare:row}+{LowShare:row})*DaysPerMonth-(ABS(CollectionDay-{AvgOutDay:row})+(CollectionDay-{AvgOutDay:row}))))<=Tolerance)"
+    }
+  ],
+  "howto": [
+    "השאלה שהקובץ עונה עליה: כמה נרוויח השנה, באיזה חודש הכסף בבנק הכי נמוך, וכמה נהגים צריך בכל חודש.",
+    "1. משנים מספרים רק בלשונית 'הנחות', בתאים הצהובים עם הכתב הכחול. כל השאר מחושב ונעול כדי שלא יימחק בטעות.",
+    "2. התשובה בלשונית 'תוצאות': רווח, היתרה הנמוכה ובאיזה חודש, נהגים בחודש העמוס, 'מה זה אומר' במילים, ו'מה אם' למחיר ולנפח.",
+    "3. בסוף כל חודש: ממלאים 'ביצוע בפועל' בתחתית ההנחות (הכנסות, עלויות, יתרה בבנק), ורואים את הסטייה בטבלה בלשונית התוצאות.",
+    "4. לשנה הבאה: משנים את 'החודש הראשון במודל', ימי עבודה (לפי לוח החגים), עונתיות ויתרות פתיחה. החודשים מתעדכנים לבד.",
+    "5. בשורת 'בדיקות תקינות' בדשבורד חייב להופיע '✔ הכל תקין'. אחרת: לא מחליטים לפי המספרים עד שמתקנים (פירוט בלשונית 'בדיקות').",
+    "6. לא לגעת בלשוניות 'חישובים' ו'בדיקות'. סוג הוצאה חדש: מוסיפים שורה במפרט ובונים מחדש (פקודה אחת), או משתמשים ב'שונות'. שורה או נוסחה שמשנים ידנית בחישובים תסומן בבדיקות (השוואה להעתק מוגן), וזה בכוונה.",
+    "הנחות חשובות: רווח לפני מס הכנסה ולפני משיכות; חנויות משלמות שוטף+30; משכורת בחודש שאחרי; מע\"מ חודשי; רכבים מסחריים. לאמת מול רואה החשבון."
+  ]
+}

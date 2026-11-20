@@ -2,6 +2,8 @@
 # qa_doc.sh <file.pdf|.docx|.doc|.odt|.pptx|.ppt|.odp|.xlsx|.html> [outdir]
 # Mandatory document QA before delivery: render every page/slide to an image so you can LOOK at it.
 # Produces full-size PNGs, phone-width (360px) PNGs, a contact sheet, and prints the page count.
+# For .docx/.pptx it then runs qa_text.py on the source (extra flags via QA_TEXT_ARGS, e.g.
+# QA_TEXT_ARGS="--type cv") and exits 1 if it reports any FAIL.
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
@@ -91,6 +93,14 @@ if have pdffonts; then
   MISSING=$(pdffonts "$PDF" 2>/dev/null | awk 'NR>2 && $(NF-4)=="no"{print $1}' | sort -u | head -5)
   [[ -n "$MISSING" ]] && echo "WARN fonts not embedded: $MISSING (may look different on the recipient's computer)"
 fi
+# content QA on the SOURCE (docx/pptx): leftovers, VAT arithmetic, bidi, font sizes, overflow, page limits
+QA_RC=0
+if [[ "$EXT" == "docx" || "$EXT" == "pptx" ]] && [[ -f "$SCRIPT_DIR/qa_text.py" ]] && have python3; then
+  echo
+  python3 "$SCRIPT_DIR/qa_text.py" "$IN" --pdf "$PDF" ${QA_TEXT_ARGS:-} || QA_RC=$?
+fi
 echo
 echo "NEXT: open the contact sheet and every page and LOOK: overflowing text, broken RTL/Hebrew,"
 echo "missing fonts, empty pages, tables cut off, slide text too small, consistent styling."
+[[ $QA_RC -ne 0 ]] && { echo "qa_text.py reported FAIL - fix before delivery."; exit 1; }
+exit 0
