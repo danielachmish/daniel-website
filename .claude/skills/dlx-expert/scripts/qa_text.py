@@ -460,7 +460,7 @@ def render_pdf(path):
     return g[0] if g else None
 
 
-_LTR_TOKEN = re.compile(r"[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?(?:\x00[\u05d0-\u05ea]+)?")
+_LTR_TOKEN = re.compile(r"\d[\d/:]*–\x00[\u05d0-\u05ea]+|[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?")
 
 
 def reading_order(visual):
