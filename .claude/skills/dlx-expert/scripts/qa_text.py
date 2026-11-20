@@ -58,6 +58,7 @@ SELF_INCRIM = ["טעות בתום לב", "לא שמתי לב", "אני מודה"
 HEB_VERB = re.compile(r"^(?:[\u05d0-\u05ea]{2,}תי|[\u05d0-\u05ea]{2,}נו|אחראית|אחראי)(?=\s|$)")
 SOURCES = []
 SUPPLIED = []
+LTR_DOC = False
 SLIDE_INSTRUCTIONS = ["המחשה", "בלי מקור", "אין עדיין נתונים", "נבדק מול", "לפני הפגישה", "לא מציגים", "להחליף ב",
                       "לבדוק מול", "TBD"]
 COMPETITOR_CLAIM = re.compile(r"מתחר|רק אנחנו|אנחנו את|טובים יותר|היחידים|לעומת")
@@ -151,6 +152,8 @@ def check_docx(path):
     normal_bidi = normal_bidi is not None and normal_bidi.find(qn("w:bidi")) is not None
     paras = docx_paras(doc)
     texts = [p.text for p in paras]
+    global LTR_DOC
+    LTR_DOC = (doc.core_properties.language or "").startswith("en")
     no_rtl, no_cs = 0, 0
     for p in paras:
         if not has_hebrew(p.text):
@@ -163,7 +166,7 @@ def check_docx(path):
             if has_hebrew(r.text) and rPr is not None and rPr.find(qn("w:sz")) is not None \
                     and rPr.find(qn("w:szCs")) is None:
                 no_cs += 1
-    if no_rtl:
+    if no_rtl and not LTR_DOC:
         log("FAIL", f"{no_rtl} פסקאות בעברית בלי כיוון RTL (w:bidi): יישור ונקודות יתהפכו ב-Word")
     if no_cs:
         log("WARN", f"{no_cs} קטעי עברית בלי גודל complex-script (szCs): ב-Word העברית תצא בגודל אחר")
@@ -197,7 +200,9 @@ def check_docx_kind(doc, texts, kind):
             t2 = t.strip()
             if t2.startswith("•"):
                 first = t2.lstrip("• \u200f\u200e").split()[0] if t2.lstrip("• ").split() else ""
-                if not HEB_VERB.match(first):
+                en_verb = LTR_DOC and re.match(r"^(?:[A-Z][a-z]+ed|Built|Set|Taught|Led|Ran|Wrote|Made|Grew|Cut|Won|"
+                                               r"Drove|Shipped|Owned)$", first)
+                if not HEB_VERB.match(first) and not en_verb:
                     log("WARN", f"שורת הישג שלא נפתחת בפועל ('{first}'): '{t2[:40]}'")
     if kind == "quote" and re.search(r"אתר|דף נחיתה|אפליקציה|חנות", full):
         for need, label in (("נגישות", "נגישות (ת\"י 5568 והצהרת נגישות)"), ("פרטיות", "פרטיות (מדיניות והסכמה בטופס)"),
@@ -240,7 +245,7 @@ def check_quote(doc, texts):
     totals = {}
     for t in doc.tables:
         rows = [[c.text.strip() for c in r.cells] for r in t.rows]
-        if not rows:
+        if not rows or len(rows[0]) < 2:      # one-cell panels (goal, proof, packages) are not totals
             continue
         hdr = rows[0]
         if any("כמות" in h for h in hdr) and any("סה\"כ" in h for h in hdr):
@@ -468,7 +473,7 @@ def render_pdf(path):
     return g[0] if g else None
 
 
-_LTR_TOKEN = re.compile(r"\d[\d/:]*–\x00[\u05d0-\u05ea]+|[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?")
+_LTR_TOKEN = re.compile(r"\d[\d/:]*–\x00[\u05d0-\u05ea]+|[$€]?[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?")
 
 
 def reading_order(visual):
@@ -525,14 +530,14 @@ def check_visual(pdf, source_texts):
             # split the visual row into segments at wide gaps (table columns, tab stops)
             segs, cur, prev_x1 = [], [], None
             for x0, x1, ch, size in chars:
-                if prev_x1 is not None and x0 - prev_x1 > size * 1.2:
+                if prev_x1 is not None and x0 - prev_x1 > size * 0.65:   # table cells sit ~0.7em apart
                     segs.append(cur)
                     cur = []
                 cur.append(ch)
                 prev_x1 = x1
             segs.append(cur)
             for seg in segs:
-                vis = "".join(seg).replace("\u00a0", " ")
+                vis = "".join(seg).replace("\u00a0", " ").replace("\u2060", "")
                 if has_hebrew(vis) and re.search(r"(?:^|\s)[ובכלמהש]{1,3}-$", reading_order(vis).strip()):
                     bad.append((pi, "שורה שנגמרת בקידומת ומקף: " + reading_order(vis).strip()[-30:]))
                 if not has_hebrew(vis) or not re.search(r"[A-Za-z0-9]", vis):
@@ -543,7 +548,8 @@ def check_visual(pdf, source_texts):
                     bad.append((pi, reading_order(vis).strip()))
 
     for pi, t in bad[:8]:
-        log("FAIL", f"סדר קריאה שבור ברינדור (עמוד {pi}): '{t[:70]}'")
+        hint = " (טווח שנשבר בין שורות: בתא צר כותבים 'עד 4' במקום '1–4')" if re.search(r"\d\s*–\)?$|\(–\d", t) else ""
+        log("FAIL", f"סדר קריאה שבור ברינדור (עמוד {pi}): '{t[:70]}'{hint}")
     dirs = {"ltr": [], "rtl": []}
     tok = r"(?:\d{1,2}/)?(?:19|20)\d\d|\d{1,2}:\d\d"
     for pi, page in enumerate(doc, 1):
@@ -633,7 +639,7 @@ def main():
             check_quote(doc, texts)
         if kind == "cv":
             check_cv(texts, pages)
-        if pdf:
+        if pdf and not LTR_DOC:          # an English (LTR) document: Hebrew reading-order rules don't apply
             check_visual(pdf, texts)
             fill = page_fill(pdf)
             if fill is not None and pages and pages > 1 and fill < 0.4:

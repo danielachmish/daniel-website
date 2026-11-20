@@ -1,0 +1,107 @@
+{
+  "type": "cv",
+  "lang": "en",
+  "tech": true,
+  "brand": {
+    "color": "1E4FA3"
+  },
+  "name": "Noa Bar-Lev",
+  "title": "Junior Full-Stack Developer · React, Node.js, TypeScript",
+  "contact": [
+    "[לאשר: phone]",
+    "[לאשר: email]",
+    "github.com/noa-barlev",
+    "linkedin.com/in/noa-barlev",
+    "Haifa, Israel"
+  ],
+  "supplied": [
+    "github.com/noa-barlev",
+    "linkedin.com/in/noa-barlev"
+  ],
+  "summary": "Full-stack developer with one year of experience in React, Node.js and PostgreSQL at a health-tech startup. Built a booking system used by 3 clinics, from spec to production. Looking for a junior role on a product team.",
+  "sections": [
+    {
+      "title": "Experience",
+      "items": [
+        {
+          "role": "Full-Stack Developer (part-time)",
+          "org": "Clinic-Flow, health-tech startup",
+          "dates": "Since 2025 (current)",
+          "location": "Haifa",
+          "bullets": [
+            "Built a React/TypeScript booking screen that cut appointment booking from 3 minutes to under 1 (product team measurement).",
+            "Developed a Node.js/Express API on PostgreSQL with role-based access and Jest tests covering 70% of the code.",
+            "Set up GitHub Actions CI that runs tests on every pull request, reducing production bugs by [לאשר: percent]."
+          ]
+        },
+        {
+          "role": "Teaching Assistant, Introduction to Computer Science",
+          "org": "Technion",
+          "dates": "2024 – 2025",
+          "bullets": [
+            "Taught weekly sessions to 40 students and built an automatic grader for Python exercises."
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Personal projects (outside employment)",
+      "items": [
+        {
+          "role": "Tor-Li: booking system for small businesses",
+          "dates": "2025",
+          "bullets": [
+            "Built with Next.js, Prisma and Stripe. Used by 3 clinics, about 600 bookings a month. Open source on GitHub."
+          ]
+        },
+        {
+          "role": "Final project: real-time public-transport crowding alerts",
+          "dates": "2024",
+          "bullets": [
+            "Developed real-time alerts (WebSockets) in Python/FastAPI on open GTFS data. 2nd place at the faculty project fair."
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Education",
+      "items": [
+        {
+          "role": "B.Sc. in Computer Science",
+          "org": "Technion",
+          "dates": "2021 – 2025",
+          "sub": "GPA 88. Courses: data structures, operating systems, databases, software engineering."
+        }
+      ]
+    },
+    {
+      "title": "Military service",
+      "items": [
+        {
+          "role": "Information Systems Operator, C4I Corps",
+          "dates": "2018 – 2020",
+          "bullets": [
+            "Supported 120 users on base and wrote scripts that automated recurring tasks."
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Skills",
+      "lines": [
+        {
+          "label": "Programming",
+          "text": "TypeScript, JavaScript, Python, SQL, C++ (basic)"
+        },
+        {
+          "label": "Technologies",
+          "text": "React, Next.js, Node.js, Express, PostgreSQL, Prisma, Docker, Git, GitHub Actions"
+        },
+        {
+          "label": "Languages",
+          "text": "Hebrew (native), English (very good)"
+        }
+      ]
+    }
+  ]
+}

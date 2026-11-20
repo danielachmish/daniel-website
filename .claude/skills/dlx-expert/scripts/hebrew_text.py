@@ -71,6 +71,7 @@ def bidi_fix(s: str) -> str:
     s = _RANGE.sub(_range_sub, s)               # always: even a line that is only "2018-2020" sits in RTL text
     s = _PRODUCT_NUM.sub(lambda m: f"{m.group(1)}\u00a0{m.group(2)}", s)
     s = _PREFIX_LATIN.sub(lambda m: m.group(1) + "-\u2060", s)   # "ב-Google": the prefix never ends a line
+    s = re.sub(r"(?<![\w\u200e\-])-(?=\d)", "\u200e-", s)        # negative number: the minus stays on the left
     if not has_hebrew(s) and not _INTL_PHONE.search(s) and " · " not in s and " | " not in s:
         return s
     s = _ABBR.sub(lambda m: m.group(1) + LRM, s)
