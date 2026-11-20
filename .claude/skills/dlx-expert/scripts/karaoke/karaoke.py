@@ -180,36 +180,6 @@ def load_asr(name: str):
     return stable_whisper.load_faster_whisper(name, device="cpu", compute_type="int8", cpu_threads=threads)
 
 
-def map_tokens(lines, aligned):
-    """Assign aligned (text,start,end,prob) tokens onto our display words by character stream."""
-    flat = [w for ln in lines if ln for w in ln]
-    targets = [norm_chars(w) for w in flat]
-    # char -> word index
-    owner = []
-    for i, t in enumerate(targets):
-        owner += [i] * len(t)
-    starts, ends, probs = [None] * len(flat), [None] * len(flat), [[] for _ in flat]
-    pos = 0
-    for tok, s, e, p in aligned:
-        n = len(norm_chars(tok))
-        if n == 0:
-            continue
-        idxs = set(owner[pos:pos + n]) if pos < len(owner) else set()
-        for i in idxs:
-            starts[i] = s if starts[i] is None else min(starts[i], s)
-            ends[i] = e if ends[i] is None else max(ends[i], e)
-            probs[i].append(p)
-        pos += n
-    if pos != len(owner):
-        log(f"WARNING: aligned text length {pos} != lyrics length {len(owner)} (check lyrics vs. audio)")
-    words = []
-    for i, w in enumerate(flat):
-        words.append({"text": w, "start": starts[i], "end": ends[i],
-                      "prob": round(min(probs[i]), 3) if probs[i] else None})
-    fix_word_times(words)
-    return words
-
-
 def fix_word_times(words):
     """interpolate missing times, enforce monotonic, min 80 ms, no overlap."""
     n = len(words)
@@ -235,37 +205,109 @@ def fix_word_times(words):
         w["start"], w["end"] = round(w["start"], 3), round(w["end"], 3)
 
 
-def align_lyrics(vocals: Path, lines, lang: str, asr: str):
-    model = load_asr(asr)
-    text = "\n".join(" ".join(ln) for ln in lines if ln)
-    t0 = time.time()
-    res = model.align(load16k(vocals), text, language=lang, original_split=True)
-    if res is None:
-        die("alignment failed - lyrics may not match this recording")
-    toks = [(w.word, w.start, w.end, float(getattr(w, "probability", 0) or 0)) for w in res.all_words()]
-    log(f"aligned {len(toks)} tokens in {time.time() - t0:.0f}s")
-    return map_tokens(lines, toks)
-
-
-def transcribe_draft(vocals: Path, lang: str, asr: str, work: Path):
-    # faster-whisper directly: its bundled Silero VAD (ONNX, no download) skips the instrumental parts, and
-    # condition_on_previous_text=False stops the "Thank you." loop whisper produces on long silences.
+def asr_words(vocals: Path, lang: str, asr: str, work: Path):
+    """Word-timestamped transcription of the VOCAL stem (cached). faster-whisper directly: its bundled
+    Silero VAD (ONNX, no download) skips instrumental parts, and condition_on_previous_text=False stops the
+    "Thank you." loop whisper produces on long silences."""
+    cache = work / f"asr_{re.sub(r'[^A-Za-z0-9]+', '_', asr)}_{lang}.json"
+    if cache.exists() and cache.stat().st_mtime > vocals.stat().st_mtime:
+        return json.loads(cache.read_text(encoding="utf-8"))
     from faster_whisper import WhisperModel
     model = WhisperModel(asr, device="cpu", compute_type="int8", cpu_threads=max(1, os.cpu_count() or 1))
     t0 = time.time()
     segs, _ = model.transcribe(load16k(vocals), language=lang, word_timestamps=True, vad_filter=True,
                                beam_size=5, condition_on_previous_text=False)
-    allw = [w for s in segs for w in (s.words or []) if w.word.strip()]
-    log(f"transcribed in {time.time() - t0:.0f}s")
+    out = [{"text": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3),
+            "prob": round(float(w.probability), 3)} for s_ in segs for w in (s_.words or []) if w.word.strip()]
+    log(f"transcribed vocal stem in {time.time() - t0:.0f}s ({len(out)} words)")
+    cache.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def local_align(vocals_16k, text, lang, asr, t0, t1, model_box):
+    """stable-ts forced alignment on a SHORT clip (no long silences to confuse it). -> [(s,e,p)] or None"""
+    try:
+        if model_box.get("m") is None:
+            model_box["m"] = load_asr(asr)
+        a, b = int(max(0, t0) * 16000), int(t1 * 16000)
+        res = model_box["m"].align(vocals_16k[a:b], text, language=lang)
+        if res is None:
+            return None
+        ws = [w for w in res.all_words() if norm_chars(w.word)]
+        return [(max(0, t0) + w.start, max(0, t0) + w.end, float(getattr(w, "probability", 0) or 0)) for w in ws]
+    except Exception as e:  # noqa
+        log(f"local alignment failed ({e}); interpolating")
+        return None
+
+
+def align_lyrics(vocals: Path, lines, lang: str, asr: str, work: Path):
+    """Supplied lyrics -> word times. 1) transcribe the vocal stem with word timestamps; 2) sequence-match
+    lyric words to recognised words (equal / substituted words take the recognised times); 3) runs of
+    lyric words the recogniser missed are force-aligned on the short clip between their anchors
+    (stable-ts), or spread / interpolated. Words always come from the lyrics - only times come from audio."""
+    import difflib
+    flat = [w for ln in lines if ln for w in ln]
+    rec = asr_words(vocals, lang, asr, work)
+    if not rec:
+        die("no singing recognised in the vocal stem")
+    A = [norm_chars(w) for w in flat]
+    B = [norm_chars(w["text"]) for w in rec]
+    words = [{"text": w, "start": None, "end": None, "prob": None, "src": None} for w in flat]
+    sm = difflib.SequenceMatcher(None, A, B, autojunk=False)
+    gaps = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == "equal" or (op == "replace" and i2 - i1 == j2 - j1):
+            for k in range(i2 - i1):
+                r = rec[j1 + k]
+                words[i1 + k].update(start=r["start"], end=r["end"], prob=r["prob"],
+                                     src="asr" if op == "equal" else "asr-substituted")
+        elif op in ("replace", "delete"):
+            gaps.append((i1, i2, j1, j2))
+    n_eq = sum(1 for w in words if w["src"] == "asr")
+    n_sub = sum(1 for w in words if w["src"] == "asr-substituted")
+    log(f"lyrics vs recognised words: {n_eq}/{len(words)} exact, {n_sub} substituted, {len(gaps)} gaps")
+    y16 = load16k(vocals) if gaps else None
+    box = {}
+    for i1, i2, j1, j2 in gaps:
+        prev_t = next((words[k]["end"] for k in range(i1 - 1, -1, -1) if words[k]["end"] is not None), 0.0)
+        next_t = next((words[k]["start"] for k in range(i2, len(words)) if words[k]["start"] is not None), None)
+        if next_t is None:
+            next_t = (rec[j2 - 1]["end"] + 1.0) if j2 > j1 else prev_t + 0.6 * (i2 - i1) + 1.0
+        got = None
+        if 0.3 < next_t - prev_t < 40:
+            got = local_align(y16, " ".join(flat[i1:i2]), lang, asr, prev_t - 0.1, next_t + 0.1, box)
+        if got and len(got) == i2 - i1:
+            for k, (s_, e_, p_) in enumerate(got):
+                words[i1 + k].update(start=max(prev_t, s_), end=min(next_t, max(e_, s_ + 0.05)),
+                                     prob=round(p_, 3), src="local-align")
+        elif j2 > j1:  # spread the recognised span over the lyric words (by length)
+            t0, t1 = rec[j1]["start"], rec[j2 - 1]["end"]
+            lens = [max(1, len(A[k])) for k in range(i1, i2)]
+            acc = 0
+            for k, n in enumerate(lens):
+                a = t0 + (t1 - t0) * acc / sum(lens)
+                acc += n
+                words[i1 + k].update(start=a, end=t0 + (t1 - t0) * acc / sum(lens), prob=0.0, src="spread")
+        # else: left None -> interpolated by fix_word_times
+    fix_word_times(words)
+    for w in words:
+        if w.get("interpolated"):
+            w["src"] = "interpolated"
+    return words
+
+
+def transcribe_draft(vocals: Path, lang: str, asr: str, work: Path):
+    allw = asr_words(vocals, lang, asr, work)
     lines, words, cur = [], [], []
     for w in allw:
-        if words and (w.start - words[-1]["end"] > 0.8 or re.search(r"[,.?!]$", words[-1]["text"])):
+        if words and (w["start"] - words[-1]["end"] > 0.8 or re.search(r"[,.?!]$", words[-1]["text"])):
             if cur:
-                lines.append(cur); cur = []
-            if w.start - words[-1]["end"] > GAP_COUNTIN:
+                lines.append(cur)
+                cur = []
+            if w["start"] - words[-1]["end"] > GAP_COUNTIN:
                 lines.append(None)
-        cur.append(w.word.strip())
-        words.append({"text": w.word.strip(), "start": w.start, "end": w.end, "prob": round(float(w.probability), 3)})
+        cur.append(w["text"])
+        words.append(dict(w))
     if cur:
         lines.append(cur)
     if not words:
@@ -645,7 +687,7 @@ def main():
         lyric_lines = parse_lyrics(lyrics_text)
         if not any(lyric_lines):
             die("lyrics file is empty")
-        words = align_lyrics(voc, lyric_lines, lang, asr)
+        words = align_lyrics(voc, lyric_lines, lang, asr, work)
         lyrics_source = "supplied"
     else:
         log("no lyrics supplied: transcribing the vocal stem as a DRAFT (never invented, must be confirmed)")
