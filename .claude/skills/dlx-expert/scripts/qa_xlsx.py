@@ -23,6 +23,10 @@ never touched), then checks the computed values, not just the formulas:
 Writes <out_dir>/recalculated.xlsx and qa_xlsx_report.txt, and (unless --no-render) a PDF + PNG of every page
 via LibreOffice/pdftoppm, which you must OPEN and LOOK at (RTL, cut columns, ####, readable dashboard).
 Exit code 1 if any FAIL.
+
+NOT covered (check by hand, and say so): a value PASTED into an input bypasses data validation in Excel (the model's own
+range checks are what catch it); conditional-format number formats; a named range that points at the wrong but valid
+cell (only duplicates are flagged); whether the business logic itself is right (that is the 3 hand checks + the critic).
 """
 import datetime
 import os
@@ -469,6 +473,18 @@ def main():
                    if re.fullmatch(r"=?\s*-?[\d.]+(?:[eE][+-]?\d+)?%?\s*", str(d.attr_text or ""))]
     (F(f"named constant(s) hidden in Name Manager (an input nobody sees): {', '.join(const_names[:8])}") if const_names
      else P("no constants hidden in named ranges"))
+    by_target = {}
+    for n_, d_ in names.items():
+        by_target.setdefault(str(d_.attr_text).replace("$", ""), []).append(n_)
+    dup = [f"{t}: {', '.join(ns)}" for t, ns in by_target.items() if len(ns) > 1]
+    if dup:
+        W(f"two names point at the same cell (one of them is probably wrong): " + " | ".join(dup[:5]))
+    hidden = [f"{ws.title}!row {r}" for ws in wf.worksheets if ws.sheet_state == "visible"
+              for r, d in ws.row_dimensions.items() if d.hidden] + \
+             [f"{ws.title}!col {k}" for ws in wf.worksheets if ws.sheet_state == "visible"
+              for k, d in ws.column_dimensions.items() if d.hidden]
+    if hidden:
+        W(f"hidden rows/columns on visible sheets (results the client cannot see): {', '.join(hidden[:8])}")
     broken = [n for n, d in names.items() if "#REF" in (d.attr_text or "")]
     (F(f"broken named ranges: {', '.join(broken)}") if broken else P(f"{len(names)} named ranges, none broken"))
     check_cells = []
@@ -614,6 +630,13 @@ def main():
                     for r in range(r1, r2 + 1):
                         for cc in range(c1, c2 + 1):
                             dv_cells[(ws.title, r, cc)] = True
+        weak_dv = []
+        for ws in wf.worksheets:
+            for dv in ws.data_validations.dataValidation:
+                if dv.type not in ("whole", "decimal", "list", "date", "time", "textLength") or (dv.formula1 in (None, "")):
+                    weak_dv.append(f"{ws.title}!{str(dv.sqref).split()[0]} (type={dv.type})")
+        if weak_dv:
+            F(f"{len(weak_dv)} data validation(s) that allow anything: " + ", ".join(weak_dv[:6]))
         novalid = [f"{s}!{c}" for s, c, _, cell in main_cells if (s, cell.row, cell.column) not in dv_cells]
         (F(f"{len(novalid)} input cell(s) without data validation: {', '.join(novalid[:8])}") if novalid
          else P("every input cell has data validation"))
@@ -661,6 +684,16 @@ def main():
                 c1, r1, c2, r2 = vb
                 if tx is not None and _rng(tx.text) and _rng(tx.text)[1] != r1:
                     chart_bad.append(f"{name}: series named by {tx.text.split('!')[-1]} plots row {r1} ({val.text.split('!')[-1]}): name and values from different rows")
+                sh_name = val.text.split("!")[0].strip("'").replace("''", "'")
+                if sh_name in wf.sheetnames:
+                    wsx = wf[sh_name]
+                    lit = ser.find("c:tx/c:v", C_NS)
+                    row_label = wsx.cell(row=r1, column=1).value
+                    if lit is not None and row_label and lit.text and lit.text.strip() != str(row_label).strip():
+                        chart_bad.append(f"{name}: series called \"{lit.text}\" plots the row labelled \"{row_label}\"")
+                    nxt = wsx.cell(row=r1, column=c2 + 1).value
+                    if isinstance(nxt, (int, float)) or (isinstance(nxt, str) and nxt.startswith("=")):
+                        chart_bad.append(f"{name}: series {val.text.split('!')[-1]} stops before {get_column_letter(c2 + 1)}{r1}, which has a value (a period is missing from the chart)")
                 if cat is not None and _rng(cat.text):
                     k1, kr1, k2, kr2 = _rng(cat.text)
                     if (k2 - k1) != (c2 - c1) or k1 != c1:
@@ -676,13 +709,15 @@ def main():
             for c in row:
                 if c.value is None or c.number_format in (None, "General", "@"):
                     continue
-                f_ = re.sub(r'"[^"]*"|\[[^\]]*\]', "", c.number_format)   # drop literal text and [colour]/[locale]
+                f_ = re.sub(r'"[^"]*"|\[[^\]]*\]|_.|\\.|\*.', "", c.number_format)   # drop text, [colour], _x spacers, \x, *x fills
                 parts = f_.split(";")
-                if len(parts) >= 2 and re.search(r"[0#]", parts[1]) and not re.search(r"[-(]", parts[1]):
+                if all(not re.search(r"[0#?@]|[ymdhs]", p_, re.I) for p_ in parts):
+                    fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' displays nothing at all")
+                elif len(parts) >= 2 and re.search(r"[0#]", parts[1]) and not re.search(r"[-(]", parts[1]):
                     fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' shows a negative number without a minus")
-                elif len(parts) >= 2 and parts[1] == "" and len(parts) <= 3:
+                elif len(parts) >= 2 and not re.search(r"[0#]", parts[1]):
                     fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' hides negative numbers")
-                elif re.search(r"[0#],(;|$)", parts[0]):
+                elif any(re.search(r"[0#?],+\s*$", p_) for p_ in parts):
                     fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' divides the number by 1,000 for display")
     (F(f"{len(fmt_bad)} cell(s) with a format that hides the sign or scale: " + " | ".join(fmt_bad[:5])) if fmt_bad
      else P("number formats show every sign and scale"))

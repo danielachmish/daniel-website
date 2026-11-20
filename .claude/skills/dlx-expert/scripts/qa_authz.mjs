@@ -9,8 +9,12 @@
 //   - security headers on EVERY page and API response listed (CSP, nosniff, frame protection, HSTS on https)
 //   - every state-changing <form> has a CSRF token; a call without a token is refused; another user's token is refused
 //   - login rate limiting (optional block), protected pages not served to anonymous, owner data not cacheable
-// Node 18+ (built-in fetch), no dependencies. Exit 1 on any FAIL. Run against local/staging only: it sends real
-// state-changing requests.
+// Node 18+ (built-in fetch), no dependencies. Exit 1 on any FAIL. Run against local/staging only, on a FRESH seed
+// (it sends real state-changing requests; a second run on the same data can report changes from the first).
+// NOT covered (write these as explicit resources, or as tests in the app): an id smuggled in the body of a request to
+// the ATTACKER'S OWN route (e.g. POST /api/sync {barcode: <A's>}); routes linked from nowhere (aliases like /1001/,
+// .json); server-side session expiry (needs a mocked clock); pages with per-request nonces can look "changed" by the
+// write probe (set "writeProbe": false on that resource and say so).
 //
 // Config (full example: templates/system-blueprint/authz.config.example.json). "${env:NAME}" is replaced by an
 // environment variable, so passwords stay out of files.
@@ -180,7 +184,7 @@ function checkCookies(s) {
   if (cfg.maxSessionSeconds) for (const c of seen.values()) {
     if (!(s.changedAtLogin || []).includes(c.name)) continue;
     const ma = parseInt(c.attrs['max-age'] || '', 10);
-    if (!Number.isNaN(ma)) ma <= cfg.maxSessionSeconds ? pass(`cookie "${c.name}": lifetime ${ma}s (<= ${cfg.maxSessionSeconds}s)`)
+    if (!Number.isNaN(ma)) ma <= cfg.maxSessionSeconds ? pass(`cookie "${c.name}": browser lifetime ${ma}s (<= ${cfg.maxSessionSeconds}s); server-side expiry still needs its own test with a mocked clock`)
                                                          : fail(`cookie "${c.name}": lifetime ${ma}s, longer than the allowed ${cfg.maxSessionSeconds}s`);
     else warn(`cookie "${c.name}": no Max-Age (browser-session cookie): the SERVER-side idle/absolute timeout is not proven by this check`);
   }
@@ -305,7 +309,9 @@ else {
   const idParam = /^(id|.*_id|.*[a-z]Id|.*ID|owner|store|user|account|customer|tenant|org|company)$/;
   const routeKey = u => {
     const [path, q = ''] = u.split('?');
-    const ps = [...new URLSearchParams(q.replace(/&amp;/g, '&')).keys()].filter(k => idParam.test(k) || idParam.test(k.toLowerCase())).sort();
+    const sp = new URLSearchParams(q.replace(/&amp;/g, '&'));
+    const ps = [...sp.keys()].filter(k => idParam.test(k) || idParam.test(k.toLowerCase())
+      || /^(\d{2,}|[0-9a-f]{8}-[0-9a-f-]{27,})$/i.test(sp.get(k) || '')).sort();   // any param whose VALUE looks like an id
     return ps.length ? `${path}?${ps.join('&')}` : (idRoute.test(path) ? path : null);
   };
   const covered = new Set((cfg.resources || []).map(r => routeKey(r.path) || r.path.split('?')[0]));
@@ -333,7 +339,7 @@ else {
   const skip = new RegExp(cfg.crawlSkip || '/(logout|signout|login)', 'i');
   for (const link of allLinks) {
     if (skip.test(link)) continue;
-    for (const [n, s2] of attackers) {
+    for (const [n, s2] of [['anonymous', anon], ...attackers]) {
       const r = await s2.req('GET', link);
       const mk = contains(r.text, [...globalMarkers].filter(m => !(s2.whoText || '').includes(m)));
       if (mk) fail(`crawl: ${n} -> GET ${link} (a link on A's pages) returns A's data ("${mk}")`);
@@ -375,11 +381,15 @@ else {
     for (const method of ['DELETE', 'PUT', 'PATCH', 'POST']) {
       for (const [n, s2] of [['anonymous', anon], ...attackers]) {
         const before = (await A.req('GET', r.path)).text;
-        const res = await s2.req(method, r.path, { json: {} });
+        // a realistic body: A's own JSON with every string field set to a marker (an empty {} is often just a 400)
+        let body = {};
+        try { const j = JSON.parse(ownerBodies.get(r.path)); if (j && typeof j === 'object' && !Array.isArray(j))
+          body = Object.fromEntries(Object.entries(j).map(([k, v]) => [k, typeof v === 'string' ? 'QA-TAMPER' : v])); } catch {}
+        const res = await s2.req(method, r.path, { json: body });
         const after = await A.req('GET', r.path);
         const changed = after.text !== before || !is2xx(after.status);
         is2xx(res.status) || changed
-          ? fail(`${n} -> ${method} ${r.path} (${r.name}): HTTP ${res.status}${changed ? ", A's resource CHANGED or disappeared" : ''}`)
+          ? fail(`${n} -> ${method} ${r.path} (${r.name}): HTTP ${res.status}${changed ? ", A's resource CHANGED or disappeared" : ''}${after.text.includes('QA-TAMPER') ? ' (the attacker\'s value is now in A\'s data)' : ''}`)
           : null;
       }
     }
@@ -470,6 +480,7 @@ else {
         const ck = pg ? (pg.setCookie || []).map(c => c.split(';')[0]).join('; ') : '';
         const body = RL.json ? JSON.stringify(RL.json) : new URLSearchParams({ ...RL.validForm || RL.form, ...(tok ? { [tok.field]: tok.value } : {}) }).toString();
         const r = await rawReq(RL.method || 'POST', RL.path, body, { 'Content-Type': RL.json ? 'application/json' : 'application/x-www-form-urlencoded', Cookie: ck }, '127.0.0.2');
+        if (r.status === 0) warn(`rate limit: could not send from 127.0.0.2 on this machine (${r.text.slice(0, 60)}): per-account lock not tested`); else
         blocked(r) ? pass(`rate limit: the account stays locked from another address (127.0.0.2, HTTP ${r.status})`)
                    : fail(`rate limit: from another address (127.0.0.2) the locked account is NOT blocked (HTTP ${r.status}): the lock is per IP, so a botnet keeps guessing`);
       } else warn('rate limit: per-account lock from another address not tested (only possible against localhost)');

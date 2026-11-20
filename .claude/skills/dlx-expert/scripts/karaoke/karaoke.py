@@ -248,21 +248,28 @@ def align_lyrics(vocals: Path, lines, lang: str, asr: str):
 
 
 def transcribe_draft(vocals: Path, lang: str, asr: str, work: Path):
-    model = load_asr(asr)
+    # faster-whisper directly: its bundled Silero VAD (ONNX, no download) skips the instrumental parts, and
+    # condition_on_previous_text=False stops the "Thank you." loop whisper produces on long silences.
+    from faster_whisper import WhisperModel
+    model = WhisperModel(asr, device="cpu", compute_type="int8", cpu_threads=max(1, os.cpu_count() or 1))
     t0 = time.time()
-    res = model.transcribe(load16k(vocals), language=lang, word_timestamps=True, vad=True)
+    segs, _ = model.transcribe(load16k(vocals), language=lang, word_timestamps=True, vad_filter=True,
+                               beam_size=5, condition_on_previous_text=False)
+    allw = [w for s in segs for w in (s.words or []) if w.word.strip()]
     log(f"transcribed in {time.time() - t0:.0f}s")
-    lines, words = [], []
-    for seg in res.segments:
-        ws = [w for w in seg.words if w.word.strip()]
-        if not ws:
-            continue
-        if words and ws[0].start - words[-1]["end"] > GAP_COUNTIN:
-            lines.append(None)
-        lines.append([w.word.strip() for w in ws])
-        for w in ws:
-            words.append({"text": w.word.strip(), "start": w.start, "end": w.end,
-                          "prob": round(float(w.probability), 3)})
+    lines, words, cur = [], [], []
+    for w in allw:
+        if words and (w.start - words[-1]["end"] > 0.8 or re.search(r"[,.?!]$", words[-1]["text"])):
+            if cur:
+                lines.append(cur); cur = []
+            if w.start - words[-1]["end"] > GAP_COUNTIN:
+                lines.append(None)
+        cur.append(w.word.strip())
+        words.append({"text": w.word.strip(), "start": w.start, "end": w.end, "prob": round(float(w.probability), 3)})
+    if cur:
+        lines.append(cur)
+    if not words:
+        die("no singing detected in the vocal stem")
     fix_word_times(words)
     # draft text for the user: uncertain words wrapped in [? ]
     out, k = [], 0
