@@ -14,7 +14,7 @@ Formula tokens (inside "formula" / "first" strings):
   {Row}         same period column of row "Row" (inputs series, calcs or outputs rows)
   {Row[-1]}     previous period column (use "first" for the first period)
   {Row:total}   the total cell (column C) of that row
-  {Row:row}     the whole period range of that row (D..last)
+  {Row:row}     the whole period range of that row (D..last); {Row:head} / {Row:tail} all but the last / first
   {Row:first} / {Row:last}   first / last period cell
   {Periods:row} the period labels of the calculations sheet
   Bare names (e.g. PricePerDelivery) are scalar inputs, used as Excel defined names.
@@ -107,6 +107,12 @@ class Builder:
         self.shadow_check = None
 
     # ---------- helpers ----------
+    def fmt(self, key):
+        """Only the named formats: a free-form format can hide a minus sign or scale numbers (qa_xlsx.py checks it too)."""
+        if key not in FORMATS:
+            die(f"format '{key}' is not one of {sorted(FORMATS)}")
+        return FORMATS[key]
+
     def pcol(self, j):
         return get_column_letter(FIRST_PERIOD_COL + j)
 
@@ -131,6 +137,10 @@ class Builder:
             return f"{pre}{get_column_letter(TOTAL_COL)}{r}"
         if mod == "row":
             return f"{pre}${self.pcol(0)}${r}:${self.pcol(self.n - 1)}${r}"
+        if mod == "head":   # all periods but the last (pairs with :tail for "previous month" vector checks)
+            return f"{pre}${self.pcol(0)}${r}:${self.pcol(self.n - 2)}${r}"
+        if mod == "tail":   # all periods but the first
+            return f"{pre}${self.pcol(1)}${r}:${self.pcol(self.n - 1)}${r}"
         if mod == "first":
             return f"{pre}{self.pcol(0)}{r}"
         if mod == "last":
@@ -243,7 +253,7 @@ class Builder:
 
     def style_input(self, c, fmt):
         c.fill, c.font, c.border = INPUT_FILL, INPUT_FONT, BOX
-        c.number_format = FORMATS.get(fmt, fmt)
+        c.number_format = self.fmt(fmt)
         c.protection = Protection(locked=False)
         c.alignment = Alignment(horizontal="center")
         self.input_cells.append(c)
@@ -319,7 +329,7 @@ class Builder:
             lc.alignment = Alignment(wrap_text=True, vertical="top")
             ws.row_dimensions[r].height = 30
         ws.cell(row=r, column=UNIT_COL, value=item.get("unit", "")).font = SUB_FONT
-        fmt = FORMATS.get(item.get("format", "money"), item.get("format"))
+        fmt = self.fmt(item.get("format", "money"))
         first = item.get("first")
         firsts = first if isinstance(first, list) else ([first] if first else [])
         for j in range(self.n):
@@ -362,7 +372,7 @@ class Builder:
                     die(f"bad KPI name {k['name']}")
                 self.wb.defined_names[k["name"]] = DefinedName(k["name"], attr_text=f"{qs(ws.title)}!$C${r}")
             c.font = KPI_FONT
-            c.number_format = FORMATS.get(k.get("format", "money"), k.get("format"))
+            c.number_format = self.fmt(k.get("format", "money"))
             c.alignment = Alignment(horizontal="center")
             if k.get("format") == "text":   # a sentence: give it the whole row width, aligned to the reading start
                 ws.merge_cells(start_row=r, start_column=TOTAL_COL, end_row=r, end_column=FIRST_PERIOD_COL + self.n - 1)
@@ -416,8 +426,13 @@ class Builder:
                     ws.merge_cells(start_row=tr_, start_column=1, end_row=tr_, end_column=FIRST_PERIOD_COL + self.n - 1)
                     tc.alignment = Alignment(horizontal="right", readingOrder=2)
                     last_row = tr_
-                    # (a chart title linked to this cell renders as "Chart Title" in LibreOffice, so the static
-                    # title names the lines and the conclusion line sits right above the chart)
+                    from openpyxl.chart.title import Title
+                    from openpyxl.chart.text import Text
+                    from openpyxl.chart.data_source import StrRef, StrData, StrVal
+                    # linked to the conclusion cell (Excel shows the live sentence); the cache holds the static title,
+                    # which is what a viewer that does not recalculate charts (LibreOffice, previews) shows
+                    chart.title = Title(tx=Text(strRef=StrRef(f=f"{qs(ws.title)}!$A${tr_}",
+                                        strCache=StrData(ptCount=1, pt=[StrVal(idx=0, v=ch["title"])]))), overlay=False)
                 chart.height, chart.width = 8, 26
                 chart.y_axis.numFmt = '₪#,##0'
                 for rr in rows:
@@ -453,7 +468,7 @@ class Builder:
             lc = ws.cell(row=r, column=1, value=chk["label"])
             lc.font = CALC_FONT
             lc.alignment = Alignment(wrap_text=True, vertical="top")
-            ws.row_dimensions[r].height = 15 * (1 + len(chk["label"]) // 85)
+            ws.row_dimensions[r].height = 16 * (1 + len(chk["label"]) // 70)
             c = ws.cell(row=r, column=TOTAL_COL, value=self.tr(chk["formula"], ws.title))
             c.font, c.alignment = TOTAL_FONT, Alignment(horizontal="center")
             r += 1

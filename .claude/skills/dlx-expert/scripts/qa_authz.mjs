@@ -34,6 +34,7 @@
 //   ]
 // }
 import fs from 'fs';
+import http from 'http';
 
 const [, , cfgPath, reportPath] = process.argv;
 if (!cfgPath) { console.error('Usage: node qa_authz.mjs <config.json> [report.json]'); process.exit(2); }
@@ -176,6 +177,13 @@ function checkCookies(s) {
     else if (onlySecure && isLocal && cfg.allowInsecureCookiesOnLocalhost) warn(`cookie "${c.name}": ${probs.join(', ')} (localhost only; MUST be Secure in production)`);
     else fail(`cookie "${c.name}": ${probs.join(', ')}`);
   }
+  if (cfg.maxSessionSeconds) for (const c of seen.values()) {
+    if (!(s.changedAtLogin || []).includes(c.name)) continue;
+    const ma = parseInt(c.attrs['max-age'] || '', 10);
+    if (!Number.isNaN(ma)) ma <= cfg.maxSessionSeconds ? pass(`cookie "${c.name}": lifetime ${ma}s (<= ${cfg.maxSessionSeconds}s)`)
+                                                         : fail(`cookie "${c.name}": lifetime ${ma}s, longer than the allowed ${cfg.maxSessionSeconds}s`);
+    else warn(`cookie "${c.name}": no Max-Age (browser-session cookie): the SERVER-side idle/absolute timeout is not proven by this check`);
+  }
   if (!checked) warn(`[${s.name}] no session cookie identified (none changed at login, none named like a session): cookie flags NOT checked`);
 }
 
@@ -202,6 +210,20 @@ function checkHeaders(where, h, kind) {
   for (const w of weak) warn(`${kind} ${where}: ${w}`);
 }
 
+
+// a request from a chosen local source address (127.0.0.2): fetch cannot do this
+function rawReq(method, path, body, headers, localAddress) {
+  return new Promise(resolve => {
+    const u = new URL(BASE + path);
+    const rq = http.request({ host: u.hostname, port: u.port, path: u.pathname + u.search, method, localAddress,
+      headers: { 'User-Agent': 'qa_authz/2.0', ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) } }, res => {
+      let t = ''; res.on('data', d => t += d); res.on('end', () => resolve({ status: res.statusCode, text: t, setCookie: res.headers['set-cookie'] }));
+    });
+    rq.on('error', e => resolve({ status: 0, text: String(e) }));
+    if (body) rq.write(body); rq.end();
+  });
+}
+
 // ---------- attacks ----------
 const ownerBodies = new Map();
 const globalMarkers = new Set();   // every explicit marker + phones/e-mails seen in ANY of A's responses
@@ -210,6 +232,14 @@ async function snapshot(A, r) {
   const v = await A.req('GET', r.verify.path);
   return is2xx(v.status) ? v.text : null;
 }
+// everything A can see, as one string: used to detect ANY change caused by an attacker's request
+async function snapshotAll(A) {
+  const paths = [...new Set([...(cfg.resources || []).filter(r => r.verify).map(r => r.verify.path), ...ownerBodies.keys()])];
+  let out = '';
+  for (const p of paths) { const v = await A.req('GET', p); out += `\n${p} ${v.status} ${v.text}`; }
+  return out;
+}
+
 async function attempt(who, sess, r, A) {
   const before = await snapshot(A, r);
   const res = await sess.req(M(r), r.path, { json: r.json, form: r.form, headers: r.headers });
@@ -270,7 +300,7 @@ else {
   for (const p of cfg.pages || []) { const o = await A.req('GET', p); if (is2xx(o.status)) autoMarkers(o.text).forEach(m => globalMarkers.add(m)); }
   for (const [, s] of attackers) autoMarkers(s.whoText || '').forEach(m => globalMarkers.delete(m));
   // route coverage: every link / form on A's pages that carries an id must be listed as a resource
-  const idRoute = /\/(\d{2,}|[0-9a-f]{8}-[0-9a-f-]{27,})(\/|$|\?)/i;
+  const idRoute = /\/(?:[\w-]*?)(\d{2,}|[0-9a-f]{8}-[0-9a-f-]{27,})(?=[\/.?#;]|$)/i;   // /orders/12, /labels/12.pdf, uuid.pdf
   // a route "carries an id" in its path (/orders/123) or in an owner-like query parameter (?owner=, ?store_id=)
   const idParam = /^(id|.*_id|.*[a-z]Id|.*ID|owner|store|user|account|customer|tenant|org|company)$/;
   const routeKey = u => {
@@ -287,9 +317,74 @@ else {
       .concat([...o.text.matchAll(/["'`](\/api\/[^"'`\s]*)["'`]/g)].map(m => m[1].replace(/\$\{[^}]*\}/g, '0')));
     for (const u of urls) { const k = routeKey(u.replace(/&amp;/g, '&')); if (k) found.add(k); }
   }
+  const allLinks = new Set();
+  for (const p of cfg.pages || []) {
+    const o = await A.req('GET', p);
+    for (const m of o.text.matchAll(/href\s*=\s*["'](\/[^"'#\s]*)["']/gi)) allLinks.add(m[1].replace(/&amp;/g, '&'));
+    for (const m of o.text.matchAll(/["'`](\/api\/[^"'`\s]*)["'`]/g)) if (!m[1].includes('${')) allLinks.add(m[1]);
+    // GET forms (search, filters): submit with every field empty
+    for (const f of o.text.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)) {
+      if (((f[1].match(/method\s*=\s*["']?(\w+)/i) || [])[1] || 'GET').toUpperCase() !== 'GET') continue;
+      const action = (f[1].match(/action\s*=\s*["']([^"']*)/i) || [])[1] || p;
+      const names = [...f[2].matchAll(/name\s*=\s*["']([^"']+)/gi)].map(x => x[1]);
+      allLinks.add(action + (names.length ? '?' + names.map(n => `${n}=`).join('&') : ''));
+    }
+  }
+  const skip = new RegExp(cfg.crawlSkip || '/(logout|signout|login)', 'i');
+  for (const link of allLinks) {
+    if (skip.test(link)) continue;
+    for (const [n, s2] of attackers) {
+      const r = await s2.req('GET', link);
+      const mk = contains(r.text, [...globalMarkers].filter(m => !(s2.whoText || '').includes(m)));
+      if (mk) fail(`crawl: ${n} -> GET ${link} (a link on A's pages) returns A's data ("${mk}")`);
+    }
+  }
+  pass(`crawl: fetched ${allLinks.size} link(s)/GET form(s) found on A's pages as every attacker`);
+  // every POST form on A's pages carries A's ids in its BODY (hidden barcode, order id, status): replay it as each
+  // attacker, with the attacker's OWN CSRF token, and fail if anything A owns changes
+  const postForms = [];
+  for (const p of cfg.pages || []) {
+    const o = await A.req('GET', p);
+    for (const f of o.text.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)) {
+      if (((f[1].match(/method\s*=\s*["']?(\w+)/i) || [])[1] || 'GET').toUpperCase() !== 'POST') continue;
+      const action = (f[1].match(/action\s*=\s*["']([^"']*)/i) || [])[1] || p;
+      if (skip.test(action)) continue;
+      const fields = {};
+      for (const m of f[2].matchAll(/<input\b[^>]*>/gi)) {
+        const n = (m[0].match(/name\s*=\s*["']([^"']+)/i) || [])[1]; const v = (m[0].match(/value\s*=\s*["']([^"']*)/i) || [])[1] ?? '';
+        if (n && !CSRF_FIELDS.includes(n.toLowerCase())) fields[n] = v;
+      }
+      for (const m of f[2].matchAll(/<select\b[^>]*name\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<option[^>]*?(?:value\s*=\s*["']([^"']*)["'])?[^>]*>([^<]*)/gi))
+        fields[m[1]] = m[2] ?? m[3];
+      postForms.push({ action, fields, page: p });
+    }
+  }
+  for (const pf of postForms) for (const [n, s2] of attackers) {
+    const before = await snapshotAll(A);
+    const r = await s2.req('POST', pf.action, { form: pf.fields });
+    const after = await snapshotAll(A);
+    before !== after ? fail(`replay: ${n} sent A's form ${pf.action} (fields ${Object.keys(pf.fields).join(', ')}) with its own token and A's data CHANGED (HTTP ${r.status})`)
+                     : pass(`replay: ${n} -> POST ${pf.action} with A's form fields: A's data unchanged (HTTP ${r.status})`);
+  }
   const uncovered = [...found].filter(x => !covered.has(x) && !(cfg.ignoreRoutes || []).includes(x));
   uncovered.length ? fail(`route coverage: ${uncovered.length} route(s) with an id found on A's pages but not tested as a resource: ${uncovered.slice(0, 8).join(', ')}`)
                    : pass(`route coverage: all ${found.size} id routes linked from A's pages are tested`);
+  // every resource A can READ is also attacked with WRITE methods (a DELETE /orders/:id without an ownership check)
+  for (const r of cfg.resources || []) {
+    if (isChanging(r) || !ownerBodies.has(r.path) || r.writeProbe === false) continue;
+    for (const method of ['DELETE', 'PUT', 'PATCH', 'POST']) {
+      for (const [n, s2] of [['anonymous', anon], ...attackers]) {
+        const before = (await A.req('GET', r.path)).text;
+        const res = await s2.req(method, r.path, { json: {} });
+        const after = await A.req('GET', r.path);
+        const changed = after.text !== before || !is2xx(after.status);
+        is2xx(res.status) || changed
+          ? fail(`${n} -> ${method} ${r.path} (${r.name}): HTTP ${res.status}${changed ? ", A's resource CHANGED or disappeared" : ''}`)
+          : null;
+      }
+    }
+  }
+  pass('write-method probe (DELETE/PUT/PATCH as every attacker) run on every readable resource');
   // attacks before the owner baseline, so a destructive baseline cannot hide them
   for (const r of cfg.resources || []) {
     await attempt('anonymous', anon, r, A);
@@ -313,6 +408,15 @@ else {
       // the "simple request" bodies a foreign site can send without a preflight: text/plain and multipart/form-data
       const payload = r.json ? JSON.stringify(r.json) : new URLSearchParams(r.form || {}).toString();
       const formBody = new URLSearchParams(r.form || r.json || {}).toString();
+      for (const [origin, label] of [[`${BASE}.evil.example`, 'a look-alike Origin'], ['null', 'Origin: null']]) {
+        const before = await snapshot(A, r);
+        const res = await fetch(BASE + r.path, { method: M(r), redirect: 'manual', body: formBody,
+          headers: { 'User-Agent': 'qa_authz/2.0', Cookie: A.cookieHeader(), 'Content-Type': 'application/x-www-form-urlencoded', Origin: origin, Referer: 'https://evil.example/' } });
+        await res.text();
+        const changed = before !== null && before !== await snapshot(A, r);
+        is2xx(res.status) || changed ? fail(`CSRF: ${M(r)} ${r.path} accepted a form post with ${label} and no token (HTTP ${res.status}${changed ? ', data changed' : ''})`)
+                                     : pass(`CSRF: form post with ${label} refused (HTTP ${res.status})`);
+      }
       for (const [ct, body] of [['application/x-www-form-urlencoded', formBody], ['text/plain', payload], ['multipart/form-data; boundary=qa', `--qa\r\nContent-Disposition: form-data; name="status"\r\n\r\n${(r.json || r.form || {}).status ?? ''}\r\n--qa--\r\n`]]) {
         const before = await snapshot(A, r);
         const h = { 'User-Agent': 'qa_authz/2.0', Cookie: A.cookieHeader(), 'Content-Type': ct, Origin: 'https://evil.example' };
@@ -359,11 +463,38 @@ else {
     else if (limited === 1) fail(`rate limit: the FIRST attempt was already "blocked": the check cannot tell a lock from a normal error`);
     else {
       pass(`rate limit: ${RL.path} answered 429/423 after ${limited - 1} wrong attempts`);
+      if (isLocal) { // the lock belongs to the ACCOUNT: the same guesses from another address must still be blocked
+        const u = new URL(BASE + RL.path);
+        const pg = RL.csrfFrom ? await rawReq('GET', RL.csrfFrom, null, {}, '127.0.0.2') : null;
+        const tok = pg ? findCsrf(pg.text) : null;
+        const ck = pg ? (pg.setCookie || []).map(c => c.split(';')[0]).join('; ') : '';
+        const body = RL.json ? JSON.stringify(RL.json) : new URLSearchParams({ ...RL.validForm || RL.form, ...(tok ? { [tok.field]: tok.value } : {}) }).toString();
+        const r = await rawReq(RL.method || 'POST', RL.path, body, { 'Content-Type': RL.json ? 'application/json' : 'application/x-www-form-urlencoded', Cookie: ck }, '127.0.0.2');
+        blocked(r) ? pass(`rate limit: the account stays locked from another address (127.0.0.2, HTTP ${r.status})`)
+                   : fail(`rate limit: from another address (127.0.0.2) the locked account is NOT blocked (HTTP ${r.status}): the lock is per IP, so a botnet keeps guessing`);
+      } else warn('rate limit: per-account lock from another address not tested (only possible against localhost)');
+      { // how long is the lock? A 3-second lock is no lock
+        const s = new Session('ratelimit-length');
+        if (RL.csrfFrom) { const pg = await s.req('GET', RL.csrfFrom); s.csrf = findCsrf(pg.text); }
+        const res = await fetch(BASE + RL.path, { method: RL.method || 'POST', redirect: 'manual',
+          headers: { 'User-Agent': 'qa_authz/2.0', Cookie: s.cookieHeader(), 'Content-Type': RL.json ? 'application/json' : 'application/x-www-form-urlencoded' },
+          body: RL.json ? JSON.stringify(RL.json) : new URLSearchParams({ ...RL.form, ...(s.csrf ? { [s.csrf.field]: s.csrf.value } : {}) }).toString() });
+        await res.text();
+        const ra = parseInt(res.headers.get('retry-after') || '', 10), min = RL.minLockSeconds ?? 300;
+        if (!blocked({ status: res.status, text: '' })) fail(`rate limit: the lock was already gone on the next request (HTTP ${res.status})`);
+        else if (Number.isNaN(ra)) warn(`rate limit: no Retry-After header, so the lock length (must be >= ${min}s) is not proven`);
+        else ra >= min ? pass(`rate limit: lock lasts ${ra}s (>= ${min}s)`) : fail(`rate limit: lock lasts only ${ra}s (< ${min}s): guessing just slows down`);
+      }
       // the lock must not be dodged by a spoofed client IP header or by changing the case of the user name
       const flip = f => f && Object.fromEntries(Object.entries(f).map(([k, v]) => [k, /user|email|login|name/i.test(k) && typeof v === 'string'
         ? [...v].map((ch, i) => i % 2 ? ch.toUpperCase() : ch.toLowerCase()).join('') : v]));
+      const pad = f => f && Object.fromEntries(Object.entries(f).map(([k, v]) => [k, /user|email|login|name/i.test(k) && typeof v === 'string' ? `  ${v}  ` : v]));
+      const wide = f => f && Object.fromEntries(Object.entries(f).map(([k, v]) => [k, /user|email|login|name/i.test(k) && typeof v === 'string'
+        ? [...v].map(ch => /[a-z]/i.test(ch) ? String.fromCharCode(ch.charCodeAt(0) + 0xFEE0) : ch).join('') : v]));   // fullwidth letters (NFKC folds them)
       for (const [label, extra] of [['a spoofed X-Forwarded-For', { headers: { 'X-Forwarded-For': '203.0.113.' + (1 + (Date.now() % 200)), 'X-Real-IP': '203.0.113.77' } }],
-                                    ['the user name in different letter case', { form: flip(RL.form), json: flip(RL.json) }]]) {
+                                    ['the user name in different letter case', { form: flip(RL.form), json: flip(RL.json) }],
+                                    ['spaces around the user name', { form: pad(RL.form), json: pad(RL.json) }],
+                                    ['fullwidth letters in the user name', { form: wide(RL.form), json: wide(RL.json) }]]) {
         const s = new Session('ratelimit-bypass');
         if (RL.csrfFrom) { const pg = await s.req('GET', RL.csrfFrom, extra.headers ? { headers: extra.headers } : {}); s.csrf = findCsrf(pg.text); }
         const r = await s.req(RL.method || 'POST', RL.path, { form: extra.form || RL.form, json: extra.json || RL.json, headers: extra.headers });

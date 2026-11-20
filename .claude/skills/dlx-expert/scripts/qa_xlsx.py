@@ -24,6 +24,7 @@ Writes <out_dir>/recalculated.xlsx and qa_xlsx_report.txt, and (unless --no-rend
 via LibreOffice/pdftoppm, which you must OPEN and LOOK at (RTL, cut columns, ####, readable dashboard).
 Exit code 1 if any FAIL.
 """
+import datetime
 import os
 import re
 import shutil
@@ -242,6 +243,15 @@ def literal_tricks(f):
                    (nxt is not None and nxt.type == "OPERATOR-INFIX" and nxt.value in "+-*/^") or \
                    (prev is not None and prev.type == "FUNC" and prev.value.upper() in ("VALUE(", "N(", "NUMBERVALUE(", "INT(", "ABS(")):
                     out.append(f'number hidden in a string {t.value}')
+        if t.type == "FUNC" and t.value.upper() in ("LEN(", "CODE(", "UNICODE(", "LENB(") and k + 1 < len(toks) and \
+           toks[k + 1].type == "OPERAND" and toks[k + 1].subtype == "TEXT":
+            out.append(f"constant made from a string {t.value}{toks[k + 1].value})")
+        if t.type == "OPERAND" and t.subtype == "LOGICAL":
+            prev = toks[k - 1] if k else None
+            nxt = toks[k + 1] if k + 1 < len(toks) else None
+            if (prev is not None and prev.type in ("OPERATOR-INFIX", "OPERATOR-PREFIX") and prev.value in "+-*/^") or \
+               (nxt is not None and nxt.type == "OPERATOR-INFIX" and nxt.value in "+-*/^"):
+                out.append(f"TRUE/FALSE used as a number ({t.value})")
         if t.type == "FUNC" and t.value.upper() in ("COLUMNS(", "ROWS(") and k + 1 < len(toks) and \
            toks[k + 1].type == "OPERAND" and toks[k + 1].subtype == "RANGE" and "$" in toks[k + 1].value:
             out.append(f"constant counted from a fixed range {t.value}{toks[k + 1].value})")
@@ -314,6 +324,12 @@ def main():
     sum_mismatch = []
     sum_checked = 0
     iferr = []
+    frozen = []           # a number typed as text where results are shown (a conclusion that will not update)
+    # a results sheet: has formulas and no unlocked (input) cells; inputs, notes and how-to sheets are not checked
+    results_sheet = {w.title: w.title not in opts["data"]
+                     and any(isinstance(x.value, str) and x.value.startswith("=") for r_ in w.iter_rows() for x in r_)
+                     and not any(x.value is not None and not x.protection.locked for r_ in w.iter_rows() for x in r_)
+                     for w in wf.worksheets}
     rowmap = {}           # (sheet,row) -> [(col, r1c1, formula, coord)]
 
     for ws in wf.worksheets:
@@ -371,6 +387,9 @@ def main():
                     const_cells.append((ws.title, c.coordinate, style_sig(c), c))
                 elif isinstance(v, str) and v.startswith(ERRORS):
                     errs.append(f"{ws.title}!{c.coordinate}={v} (typed)")
+                elif isinstance(v, str) and c.column >= 3 and re.search(r"\d[\d,.]{2,}", v) and results_sheet.get(ws.title) \
+                        and not any(isinstance(x.value, str) and x.value.startswith("=") for x in ws[c.row]):
+                    frozen.append(f"{ws.title}!{c.coordinate} \"{v[:50]}\"")
         if hebrew:
             (P if ws.sheet_view.rightToLeft else F)(f"sheet '{ws.title}' has Hebrew and is {'RTL' if ws.sheet_view.rightToLeft else 'NOT right-to-left'}")
 
@@ -424,6 +443,8 @@ def main():
                 run.append(item)
     (F(f"{len(incons)} formula(s) break their row's pattern (copied wrong / overwritten): " + " | ".join(incons[:6]))
      if incons else P(f"{runs_checked} formula rows consistent across periods (one formula per row)"))
+    if frozen:
+        F(f"{len(frozen)} number(s) typed as TEXT in a results area (a conclusion that will never update): " + " | ".join(frozen[:6]))
     if iferr:
         W(f"IFERROR/IFNA in {len(iferr)} cell(s) can hide real errors: {', '.join(iferr[:6])}")
     if wv:
@@ -507,13 +528,28 @@ def main():
         mdir = out / "mutations"
         mdir.mkdir(exist_ok=True)
         jobs = []
+        untested = []
         for n, (sh, row, cells) in enumerate(cand):
-            col, _, _, coord = sorted(cells)[len(cells) // 2]
-            v = wv[sh][coord].value
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
+            srt = sorted(cells)
+            order = srt[len(srt) // 2:] + srt[:len(srt) // 2]          # middle first, then any numeric cell
+            vals = [wv[sh][coord].value for _, _, _, coord in srt]
+            if vals and all(isinstance(x, datetime.datetime) for x in vals) and len(vals) >= 3:
+                continue   # a period-header row (dates), not a result
+            pick = next(((col, coord) for col, _, _, coord in order
+                         if isinstance(wv[sh][coord].value, (int, float, str, datetime.datetime)) and not isinstance(wv[sh][coord].value, bool)
+                         and wv[sh][coord].value != ""), None)
+            if pick is None:
+                untested.append(f"{sh}!{srt[0][3]} ({wf[sh].cell(row=row, column=1).value or ''})")
                 continue
+            col, coord = pick
+            v = wv[sh][coord].value
             wm = openpyxl.load_workbook(src)
-            wm[sh][coord].value = v * 1.1 + 1 if v else 1000
+            if isinstance(v, str):
+                wm[sh][coord].value = "x"                          # a sentence replaced: do the checks read the text?
+            elif isinstance(v, datetime.datetime):
+                wm[sh][coord].value = v + datetime.timedelta(days=31)
+            else:
+                wm[sh][coord].value = v * 1.1 + 1 if v else 1000
             mp = mdir / f"mut_{n}.xlsx"
             wm.save(mp)
             jobs.append((mp, sh, row, coord))
@@ -544,6 +580,9 @@ def main():
             else:
                 P(f"mutation test: corrupted one cell in each of {n} calculation rows and named results; independent checks "
                   f"(not counting the hidden copy) caught every one")
+        if untested:
+            W(f"mutation test: {len(untested)} row(s) have no number to corrupt (blank or text results) and were NOT tested: "
+              + " | ".join(untested[:6]) + ". Fill sample values (e.g. one month of actuals) and run again")
         shutil.rmtree(mdir, ignore_errors=True)
 
     # ---- inputs styled distinctly ----
@@ -595,6 +634,58 @@ def main():
         W(f"volatile OFFSET/INDIRECT in {len(volatile)} cell(s) (fragile, slow; FAST discourages): {', '.join(volatile[:6])}")
     if newfn:
         F(f"functions missing in {opts['target']}: " + " | ".join(newfn[:6]))
+
+    # ---- charts: every series must take its name and its values from the same row, over the whole period ----
+    import zipfile
+    from xml.etree import ElementTree as ET
+    C_NS = {"c": "http://schemas.openxmlformats.org/drawingml/2006/chart"}
+    chart_bad, n_series = [], 0
+    def _rng(ref):
+        ref = ref.split("!")[-1].replace("$", "")
+        try:
+            return range_boundaries(ref)
+        except Exception:
+            return None
+    with zipfile.ZipFile(src) as z:
+        for name in sorted(n for n in z.namelist() if n.startswith("xl/charts/chart") and n.endswith(".xml")):
+            root = ET.fromstring(z.read(name))
+            cat_len = None
+            for ser in root.iter("{%s}ser" % C_NS["c"]):
+                n_series += 1
+                tx = ser.find("c:tx/c:strRef/c:f", C_NS)
+                val = ser.find("c:val/c:numRef/c:f", C_NS)
+                cat = ser.find("c:cat/*/c:f", C_NS)
+                vb = _rng(val.text) if val is not None else None
+                if vb is None:
+                    chart_bad.append(f"{name}: a series without a value range"); continue
+                c1, r1, c2, r2 = vb
+                if tx is not None and _rng(tx.text) and _rng(tx.text)[1] != r1:
+                    chart_bad.append(f"{name}: series named by {tx.text.split('!')[-1]} plots row {r1} ({val.text.split('!')[-1]}): name and values from different rows")
+                if cat is not None and _rng(cat.text):
+                    k1, kr1, k2, kr2 = _rng(cat.text)
+                    if (k2 - k1) != (c2 - c1) or k1 != c1:
+                        chart_bad.append(f"{name}: values {val.text.split('!')[-1]} do not line up with the categories {cat.text.split('!')[-1]}")
+    if n_series:
+        (F(f"{len(chart_bad)} chart problem(s): " + " | ".join(chart_bad[:5])) if chart_bad
+         else P(f"{n_series} chart series: names, values and periods line up"))
+
+    # ---- number formats that hide the sign or scale the number ----
+    fmt_bad = []
+    for ws in wf.worksheets:
+        for row in ws.iter_rows():
+            for c in row:
+                if c.value is None or c.number_format in (None, "General", "@"):
+                    continue
+                f_ = re.sub(r'"[^"]*"|\[[^\]]*\]', "", c.number_format)   # drop literal text and [colour]/[locale]
+                parts = f_.split(";")
+                if len(parts) >= 2 and re.search(r"[0#]", parts[1]) and not re.search(r"[-(]", parts[1]):
+                    fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' shows a negative number without a minus")
+                elif len(parts) >= 2 and parts[1] == "" and len(parts) <= 3:
+                    fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' hides negative numbers")
+                elif re.search(r"[0#],(;|$)", parts[0]):
+                    fmt_bad.append(f"{ws.title}!{c.coordinate} '{c.number_format}' divides the number by 1,000 for display")
+    (F(f"{len(fmt_bad)} cell(s) with a format that hides the sign or scale: " + " | ".join(fmt_bad[:5])) if fmt_bad
+     else P("number formats show every sign and scale"))
 
     # ---- render for eyes ----
     if opts["render"] and rc and shutil.which("soffice"):

@@ -430,6 +430,15 @@
       "note": "כ-9% בשנה. [להשלים מהבנק]"
     },
     {
+      "name": "DaysPerMonth",
+      "label": "ימים בחודש לחישוב ריבית",
+      "value": 30,
+      "unit": "ימים",
+      "format": "int",
+      "min": 28,
+      "max": 31
+    },
+    {
       "section": "מתי בחודש הכסף זז (יום בחודש)"
     },
     {
@@ -514,6 +523,15 @@
       "value": 0.1,
       "unit": "%",
       "format": "pct"
+    },
+    {
+      "name": "SensCollectionDay",
+      "label": "יום גבייה לבדיקה (אם החנויות ישלמו מוקדם יותר)",
+      "value": 10,
+      "unit": "יום",
+      "format": "int",
+      "min": 1,
+      "max": 31
     },
     {
       "section": "ביצוע בפועל (ממלאים בסוף כל חודש, מהנהלת החשבונות ומהבנק)"
@@ -792,10 +810,10 @@
     },
     {
       "name": "InterestPaid",
-      "label": "ריבית על המסגרת (לפי השפל בחודש הקודם)",
+      "label": "ריבית על המסגרת (לפי ימים: השפל עד הגבייה, ויתרת הסוף אחריה)",
       "unit": "₪",
-      "formula": "=MAX(0,-{IntraMonthLow[-1]})*OverdraftMonthlyRate",
-      "first": "=0"
+      "formula": "=OverdraftMonthlyRate*(MAX(0,-{IntraMonthLow[-1]})*{LowShare[-1]}+MAX(0,-{ClosingCash[-1]})*(1-{LowShare[-1]}))",
+      "first": "=OverdraftMonthlyRate*MAX(0,-OpeningCash)"
     },
     {
       "name": "OwnerNIPaid",
@@ -833,12 +851,34 @@
       "formula": "={OpeningCashBal}+{NetCashFlow}"
     },
     {
+      "name": "PreCollectionOut",
+      "label": "יוצא מהבנק לפני שהחנויות משלמות (בלי ריבית)",
+      "unit": "₪",
+      "formula": "={PayrollPaid}*(PayrollDay<CollectionDay)+{SupplierPayments}*(SupplierDay<CollectionDay)+{VatPaid}*(VatDay<CollectionDay)+({TaxAdvancePaid}+{OwnerNIPaid})*(TaxDay<CollectionDay)+{EquipmentPaid}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid}*(OwnerDrawDay<CollectionDay)"
+    },
+    {
+      "name": "AvgOutDay",
+      "label": "היום הממוצע שבו הכסף יוצא (משוקלל בסכומים)",
+      "unit": "יום",
+      "format": "num",
+      "total": "none",
+      "formula": "=IF({PreCollectionOut}=0,CollectionDay,({PayrollPaid}*(PayrollDay<CollectionDay)*PayrollDay+{SupplierPayments}*(SupplierDay<CollectionDay)*SupplierDay+{VatPaid}*(VatDay<CollectionDay)*VatDay+({TaxAdvancePaid}+{OwnerNIPaid})*(TaxDay<CollectionDay)*TaxDay+{EquipmentPaid}*(EquipmentDay<CollectionDay)*EquipmentDay+{OwnerDrawPaid}*(OwnerDrawDay<CollectionDay)*OwnerDrawDay)/{PreCollectionOut})"
+    },
+    {
+      "name": "LowShare",
+      "label": "חלק מהחודש שבו הבנק בשפל",
+      "unit": "%",
+      "format": "pct",
+      "total": "none",
+      "formula": "=MAX(0,CollectionDay-{AvgOutDay})/DaysPerMonth"
+    },
+    {
       "name": "IntraMonthLow",
       "label": "הנקודה הנמוכה בבנק בתוך החודש (לפני שהחנויות משלמות)",
       "unit": "₪",
       "bold": true,
       "total": "min",
-      "formula": "=MIN({ClosingCash},{OpeningCashBal}-({PayrollPaid}*(PayrollDay<CollectionDay)+{SupplierPayments}*(SupplierDay<CollectionDay)+{VatPaid}*(VatDay<CollectionDay)+({TaxAdvancePaid}+{OwnerNIPaid})*(TaxDay<CollectionDay)+{EquipmentPaid}*(EquipmentDay<CollectionDay)+{InterestPaid}+{OwnerDrawPaid}*(OwnerDrawDay<CollectionDay)))"
+      "formula": "=MIN({ClosingCash},{OpeningCashBal}-{PreCollectionOut}-{InterestPaid})"
     },
     {
       "name": "BufferLine",
@@ -928,12 +968,14 @@
       {
         "label": "המזומן מספיק?",
         "format": "text",
-        "formula": "=IF({BelowBuffer:total}>0,\"לא: ב-\"&{BelowBuffer:total}&\" חודשים הבנק יורד מתחת לכרית לפני שהחנויות משלמות. צריך מסגרת של \"&TEXT(MAX(0,MinCashBuffer-MIN({IntraMonthLow:row})),\"#,##0\")&\" ₪ (ריבית בערך \"&TEXT({InterestPaid:total},\"#,##0\")&\" ₪ בשנה), או להקטין משיכות\",\"כן, עם מרווח\")"
+        "formula": "=IF(Kpi_BelowBuffer>0,\"לא: ב-\"&Kpi_BelowBuffer&\" חודשים הבנק יורד מתחת לכרית לפני שהחנויות משלמות. צריך מסגרת של \"&TEXT(Kpi_Credit,\"#,##0\")&\" ₪ (ריבית בערך \"&TEXT(Kpi_Interest,\"#,##0\")&\" ₪ בשנה), או להקטין משיכות\",\"כן, עם מרווח\")",
+        "name": "Kpi_CashText"
       },
       {
         "label": "הבעלים מושכים יותר מהרווח?",
         "format": "text",
-        "formula": "=IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>{OperatingProfit:total}-{TaxAdvancePaid:total}-{InterestPaid:total},\"כן: משיכות וביטוח לאומי \"&TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\")&\" ₪ בשנה, מול רווח אחרי מקדמות וריבית של \"&TEXT({OperatingProfit:total}-{TaxAdvancePaid:total}-{InterestPaid:total},\"#,##0\")&\" ₪. ההפרש יוצא מהמזומן\",\"לא, הרווח מכסה את המשיכות\")"
+        "formula": "=IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,\"כן: משיכות וביטוח לאומי \"&TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\")&\" ₪ בשנה, מול רווח אחרי מקדמות וריבית של \"&TEXT(Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,\"#,##0\")&\" ₪. ההפרש יוצא מהמזומן\",\"לא, הרווח מכסה את המשיכות\")",
+        "name": "Kpi_DrawText"
       },
       {
         "label": "נקודת איזון: משלוחים בחודש שמכסים את ההוצאות הקבועות",
@@ -960,6 +1002,13 @@
         "note": "בערך: בלי לצמצם נהגים"
       },
       {
+        "label": "אם החנויות משלמות ביום שבהנחות (ולא בסוף החודש): מסגרת שצריך",
+        "name": "Kpi_CreditIfEarly",
+        "formula": "=MAX(0,MinCashBuffer-SUMPRODUCT(MIN({ClosingCash:row},{OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<SensCollectionDay)+{SupplierPayments:row}*(SupplierDay<SensCollectionDay)+{VatPaid:row}*(VatDay<SensCollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<SensCollectionDay)+{EquipmentPaid:row}*(EquipmentDay<SensCollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<SensCollectionDay)))))",
+        "format": "money",
+        "note": "בערך: בלי שינוי בריבית. ההנחה הכי רגישה במודל"
+      },
+      {
         "section": "תקציב מול ביצוע, מצטבר"
       },
       {
@@ -971,12 +1020,14 @@
       {
         "label": "סטייה מצטברת בהכנסות",
         "formula": "=IF(COUNT({ActualRevenue:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_RevenueVar:row}))",
-        "format": "money"
+        "format": "money",
+        "name": "Kpi_RevVarYtd"
       },
       {
         "label": "סטייה מצטברת בעלויות",
         "formula": "=IF(COUNT({ActualCosts:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_CostVar:row}))",
-        "format": "money"
+        "format": "money",
+        "name": "Kpi_CostVarYtd"
       }
     ],
     "table_title": "חודש אחרי חודש",
@@ -1144,11 +1195,11 @@
     },
     {
       "label": "השפל בתוך החודש = המינימום בין יתרת הסוף לפתיחה פחות מה שיוצא לפני הגבייה (חישוב וקטורי עצמאי)",
-      "formula": "=SUMPRODUCT(ABS(({ClosingCash:row}+({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay)))-ABS({ClosingCash:row}-({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay)))))-({IntraMonthLow:row}+{IntraMonthLow:row})))<=Tolerance"
+      "formula": "=AND(SUMPRODUCT(ABS({PreCollectionOut:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))))<=Tolerance,SUMPRODUCT(ABS(({ClosingCash:row}+({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))-{InterestPaid:row})-ABS({ClosingCash:row}-({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)+{SupplierPayments:row}*(SupplierDay<CollectionDay)+{VatPaid:row}*(VatDay<CollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay))-{InterestPaid:row})))-({IntraMonthLow:row}+{IntraMonthLow:row})))<=Tolerance)"
     },
     {
-      "label": "ריבית בשנה = שיעור × שימוש במסגרת בחודשים הקודמים",
-      "formula": "=ABS(({InterestPaid:total}+{InterestPaid:total})-OverdraftMonthlyRate*(SUMPRODUCT(ABS({IntraMonthLow:row})-{IntraMonthLow:row})-(ABS({IntraMonthLow:last})-{IntraMonthLow:last})))<=Tolerance"
+      "label": "ריבית: חישוב עצמאי מהשפל, מיתרת הסוף ומחלק החודש (וקטורי, חודש קודם מול חודש נוכחי)",
+      "formula": "=ABS(({InterestPaid:total}+{InterestPaid:total})-OverdraftMonthlyRate*(SUMPRODUCT((ABS({IntraMonthLow:head})-{IntraMonthLow:head})*{LowShare:head}+(ABS({ClosingCash:head})-{ClosingCash:head})*(1-{LowShare:head}))+ABS(OpeningCash)-OpeningCash))<=Tolerance"
     },
     {
       "label": "הדשבורד: כל מספר בראש העמוד שווה לחישוב עצמאי שלו",
@@ -1157,6 +1208,26 @@
     {
       "label": "הדשבורד: נקודת איזון ו'מה אם' (בדיקה הפוכה)",
       "formula": "=AND(OR(Kpi_BreakEven=0,AND(Kpi_BreakEven*(PricePerDelivery-{VariableCosts:total}/{Deliveries:total})>={FixedCosts:total}/COUNT({FixedCosts:row}),(Kpi_BreakEven-1)*(PricePerDelivery-{VariableCosts:total}/{Deliveries:total})<{FixedCosts:total}/COUNT({FixedCosts:row}))),ABS(Kpi_SensPrice-Kpi_Profit-{Deliveries:total}*SensPriceStep*(1-BadDebtRate))<=Tolerance,ABS(Kpi_Profit-Kpi_SensVolume-SensVolumePct*({Revenue:total}-{VariableCosts:total}))<=Tolerance)"
+    },
+    {
+      "label": "המשפטים בדשבורד מציגים בדיוק את המספרים שלמעלה (מסגרת, ריבית, חודשים, משיכות)",
+      "formula": "=AND(IF(Kpi_BelowBuffer>0,AND(ISNUMBER(SEARCH(TEXT(Kpi_Credit,\"#,##0\"),Kpi_CashText)),ISNUMBER(SEARCH(TEXT(Kpi_Interest,\"#,##0\"),Kpi_CashText)),ISNUMBER(SEARCH(Kpi_BelowBuffer&\" חודשים\",Kpi_CashText))),Kpi_CashText=\"כן, עם מרווח\"),IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>Kpi_Profit-{TaxAdvancePaid:total}-Kpi_Interest,ISNUMBER(SEARCH(TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\"),Kpi_DrawText)),Kpi_DrawText=\"לא, הרווח מכסה את המשיכות\"))"
+    },
+    {
+      "label": "תקציב מול ביצוע: בכל חודש שהוזן, סטייה = בפועל פחות תקציב (הכנסות, כל העלויות, יתרת סוף החודש)",
+      "formula": "=SUMPRODUCT(ISNUMBER({ActualRevenue:row})*ABS(N(+{Out_RevenueVar:row})-({ActualRevenue:row}-{Revenue:row})))+SUMPRODUCT(ISNUMBER({ActualRevenue:row})*ABS(N(+{Out_ActualRevenue:row})-{ActualRevenue:row}))+SUMPRODUCT(ISNUMBER({ActualCosts:row})*ABS(N(+{Out_CostVar:row})-({ActualCosts:row}-{TotalCosts:row})))+SUMPRODUCT(ISNUMBER({ActualCash:row})*ABS(N(+{Out_CashVar:row})-({ActualCash:row}-{ClosingCash:row})))<=Tolerance"
+    },
+    {
+      "label": "מה אם יום הגבייה: המסגרת = כרית פחות השפל הנמוך מבין סוף החודש ומה שיוצא לפני יום הגבייה החדש",
+      "formula": "=ABS(Kpi_CreditIfEarly-MAX(0,MinCashBuffer-MIN(MIN({ClosingCash:row}),SUMPRODUCT(MIN({OpeningCashBal:row}-({PayrollPaid:row}*(PayrollDay<SensCollectionDay)+{SupplierPayments:row}*(SupplierDay<SensCollectionDay)+{VatPaid:row}*(VatDay<SensCollectionDay)+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<SensCollectionDay)+{EquipmentPaid:row}*(EquipmentDay<SensCollectionDay)+{InterestPaid:row}+{OwnerDrawPaid:row}*(OwnerDrawDay<SensCollectionDay)))))))<=Tolerance"
+    },
+    {
+      "label": "הדשבורד: סטייה מצטברת = סכום הסטיות החודשיות",
+      "formula": "=AND(IF(Kpi_ActualMonths=0,Kpi_RevVarYtd=\"עוד לא הוזן ביצוע\",ABS(N(+Kpi_RevVarYtd)-SUMPRODUCT(ISNUMBER({ActualRevenue:row})*({ActualRevenue:row}-{Revenue:row})))<=Tolerance),IF(COUNT({ActualCosts:row})=0,Kpi_CostVarYtd=\"עוד לא הוזן ביצוע\",ABS(N(+Kpi_CostVarYtd)-SUMPRODUCT(ISNUMBER({ActualCosts:row})*({ActualCosts:row}-{TotalCosts:row})))<=Tolerance))"
+    },
+    {
+      "label": "יום יציאה ממוצע וחלק החודש בשפל = חישוב עצמאי מימי התשלום",
+      "formula": "=AND(SUMPRODUCT(ABS({AvgOutDay:row}*{PreCollectionOut:row}-({PayrollPaid:row}*(PayrollDay<CollectionDay)*PayrollDay+{SupplierPayments:row}*(SupplierDay<CollectionDay)*SupplierDay+{VatPaid:row}*(VatDay<CollectionDay)*VatDay+({TaxAdvancePaid:row}+{OwnerNIPaid:row})*(TaxDay<CollectionDay)*TaxDay+{EquipmentPaid:row}*(EquipmentDay<CollectionDay)*EquipmentDay+{OwnerDrawPaid:row}*(OwnerDrawDay<CollectionDay)*OwnerDrawDay)))<=Tolerance,SUMPRODUCT(ABS(({LowShare:row}+{LowShare:row})*DaysPerMonth-(ABS(CollectionDay-{AvgOutDay:row})+(CollectionDay-{AvgOutDay:row}))))<=Tolerance)"
     }
   ],
   "howto": [
