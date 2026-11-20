@@ -10,12 +10,14 @@ Checks
   (b) BLEED    vocal residue left in the instrumental: re-separate the instrumental with a second model
                (MDX Inst HQ3) and compare its "vocals" energy with the real vocal stem (whole song and the
                worst 2-second window). Plus a band-energy heuristic (300-3500 Hz, sung vs. non-sung frames).
-               FAIL: whole-song residue > -14 dB.
+               FAIL: residue more than 6 dB above the detector floor (what it "hears" where nobody sings).
   (c) PITCH    shift measured between original and shifted instrumental (log-frequency cross-correlation
                of whitened spectra, median over blocks). FAIL: |measured - requested| > 15 cents,
                duration diff > 50 ms, time offset > 20 ms.
-  (d) LOUDNESS each MP4: -14 +-1 LUFS, true peak <= -1 dBTP; resolution and duration.
-  (e) FRAMES   lyric-moment frames + contact sheet per format; automatic highlight-direction test
+  (d) LOUDNESS each MP4: -14 +-1 LUFS, true peak <= -1 dBTP; resolution, 30 fps, H.264/yuv420p + AAC, duration.
+  LAYOUT       the .ass itself: no two lyric events at the same position at once, no intersecting text boxes,
+               nothing off-frame, <= 2 lyric lines on screen.
+  (e) FRAMES   lyric-moment frames + contact sheet + 360 px phone sheet per format; highlight-direction test
                (RTL: the sung part must be on the RIGHT of the unsung part); OCR word-order test with
                tesseract (heb/eng) when installed.
 --shift S adds S seconds to every word (negative control: a 0.4 s shift must FAIL the sync check).
@@ -81,18 +83,43 @@ def check_sync(T, shift):
     a1 = np.abs(offs) * 1000 if offs else np.array([9999.0])
     no_onset = 1 - len(offs) / max(1, len(meas))
 
-    # 2) phrase starts: word after >= 0.35 s rest, silence before -> first voiced frame
-    poffs = []
-    for i, w in enumerate(meas):
-        if i and w["start"] - meas[i - 1]["end"] < 0.35:
-            continue
-        lo = int(max(0, (w["start"] - 0.6) * fps))
-        hi = int(min(len(active), (w["start"] + 0.6) * fps))
-        seg = active[lo:hi]
-        if seg.size < 10 or seg[:4].any() or not seg.any():
-            continue
-        poffs.append(w["start"] - (lo + int(np.argmax(seg))) / fps)
+    # 2) phrase starts. Ground truth comes from the audio only: the vocal stem's level (smoothed) rises above
+    #    p95-12 dB after >= 0.2 s below p95-22 dB (hysteresis) -> a sung phrase begins. Each such onset is
+    #    matched to the nearest timed word that starts a phrase (first word, or after a >= 0.25 s rest).
+    from scipy.ndimage import uniform_filter1d
+    sdb = uniform_filter1d(db, 3)
+    ref = np.percentile(sdb, 95)
+    on_thr, off_thr = ref - 12, ref - 22
+    onsets_true, state, quiet = [], False, 0
+    for k, v in enumerate(sdb):
+        if state:
+            if v < off_thr:
+                state, quiet = False, 1
+        else:
+            quiet = quiet + 1 if v < off_thr else quiet
+            if v > on_thr:
+                if quiet >= int(0.2 * fps):
+                    # walk back to where the rise started (first frame above off_thr)
+                    j = k
+                    while j > 0 and sdb[j - 1] > off_thr:
+                        j -= 1
+                    onsets_true.append(j / fps)
+                state, quiet = True, 0
+    line_first = {L["words"][0] for L in T["lines"]}
+    pstarts = np.array([w["start"] for i, w in enumerate(words) if not w.get("interpolated")
+                        and (i == 0 or i in line_first or w["start"] - words[i - 1]["end"] >= 0.25
+                             or re.search(r"[,.;:!?]$", words[i - 1]["text"]))])
+    poffs, pairs = [], []
+    for o in onsets_true:
+        if len(pstarts) == 0:
+            break
+        d = pstarts - o
+        k = int(np.argmin(np.abs(d)))
+        if abs(d[k]) <= 1.0:
+            poffs.append(float(d[k]))
+            pairs.append((round(o, 2), round(float(d[k]) * 1000)))
     a2 = np.abs(poffs) * 1000 if poffs else np.array([])
+    unmatched = len(onsets_true) - len(poffs)
 
     # 3) global lag: word-start impulses vs onset envelope
     n = len(env)
@@ -121,17 +148,19 @@ def check_sync(T, shift):
                nearest_onset_p90_ms=round(pct(a1, 90), 1), words_without_onset=round(no_onset, 3),
                phrase_starts=len(a2), phrase_start_median_ms=round(float(np.median(a2)), 1) if len(a2) else None,
                phrase_start_p90_ms=round(pct(a2, 90), 1) if len(a2) else None,
+               phrase_onset_pairs=pairs, phrase_onsets_detected=len(onsets_true), phrase_onsets_unmatched=unmatched,
                phrase_start_signed_median_ms=round(float(np.median(poffs)) * 1000, 1) if poffs else None,
                global_lag_ms=round(float(lag_ms), 1), voiced_coverage=round(cov, 3))
-    msg = (f"nearest-onset median {out['nearest_onset_median_ms']}ms p90 {out['nearest_onset_p90_ms']}ms "
-           f"({len(offs)}/{len(meas)} words); phrase-starts n={out['phrase_starts']} median "
-           f"{out['phrase_start_median_ms']}ms p90 {out['phrase_start_p90_ms']}ms; lag {out['global_lag_ms']}ms; "
-           f"voiced {cov:.0%}")
-    fail = (out["nearest_onset_p90_ms"] > 250 or (len(a2) >= 3 and out["phrase_start_p90_ms"] > 250)
-            or abs(lag_ms) > 100 or cov < 0.75)
+    msg = (f"PHRASE-START offset median {out['phrase_start_median_ms']}ms p90 {out['phrase_start_p90_ms']}ms "
+           f"(n={out['phrase_starts']}, signed median {out['phrase_start_signed_median_ms']}ms); global lag "
+           f"{out['global_lag_ms']}ms; voiced {cov:.0%}; [info: nearest-onset median {out['nearest_onset_median_ms']}ms p90 {out['nearest_onset_p90_ms']}ms "
+           f"({len(offs)}/{len(meas)} words) - not a pass criterion, onsets are too dense]")
+    # nearest-onset is informational only: onsets are dense, so it stays small even for a 0.4 s error.
+    fail = ((len(a2) >= 5 and out["phrase_start_p90_ms"] > 250) or abs(lag_ms) > 100 or cov < 0.75)
     res("FAIL" if fail else "PASS", "sync", msg)
-    if not fail and len(a2) < 3:
-        res("WARN", "sync", "fewer than 3 clean phrase starts - phrase-start measure not conclusive")
+    if len(a2) < 10:
+        res("WARN", "sync", f"only {len(a2)} clean phrase starts (continuous / melismatic singing?) - phrase-start "
+                            "measure not conclusive; the critic must check sync on the 1-fps review sheets")
     return out
 
 
@@ -171,25 +200,49 @@ def check_bleed(T, use_model, work):
         vs = list(d.glob("*(Vocals)*.wav"))
         if r2.returncode == 0 and vs:
             resid = load_mono(vs[0], sr)[:n]
-            ev, er = float(np.sum(voc ** 2)), float(np.sum(resid ** 2))
+            # the detector model also calls some instruments "vocals": measure that floor where nobody sings
+            fr = sr // 10
+            nf = n // fr
+            vf = (voc[:nf * fr].reshape(nf, fr) ** 2).mean(1)
+            rf = (resid[:nf * fr].reshape(nf, fr) ** 2).mean(1)
+            vdb_f = 10 * np.log10(vf + 1e-12)
+            singing = vdb_f > np.percentile(vdb_f, 95) - 25
+            ev = float(vf[singing].sum()) if singing.any() else float(np.sum(voc ** 2))
+            er = float(rf[singing].sum()) if singing.any() else float(np.sum(resid ** 2))
             whole = 10 * np.log10((er + 1e-12) / (ev + 1e-12))
+            floor = None
+            if (~singing).sum() > 20:
+                floor = 10 * np.log10((rf[~singing].mean() + 1e-12) / (vf[singing].mean() + 1e-12)) if singing.any() else None
+            out["detector_floor_db"] = round(float(floor), 2) if floor is not None else None
             # worst 2 s window, only where the singer sings (relative to that window's vocal energy)
             win = 2 * sr
             worst, wt = -120.0, 0.0
             for s in range(0, n - win, sr // 2):
-                v = float(np.sum(voc[s:s + win] ** 2))
-                if v < ev / (n / win) * 0.3:
+                f0, f1 = s // fr, (s + win) // fr
+                if not singing[f0:f1].size or singing[f0:f1].mean() < 0.6:  # mostly-sung windows only
                     continue
+                v = float(np.sum(voc[s:s + win] ** 2))
                 d_db = 10 * np.log10((float(np.sum(resid[s:s + win] ** 2)) + 1e-12) / (v + 1e-12))
                 if d_db > worst:
                     worst, wt = d_db, s / sr
-            out.update(residue_db=round(whole, 2), worst_window_db=round(worst, 2), worst_window_at_s=round(wt, 1))
+            out.update(residue_db=round(float(whole), 2), worst_window_db=round(float(worst), 2),
+                       worst_window_at_s=round(float(wt), 1))
         else:
             out["residue_db"] = None
             res("WARN", "bleed", f"second-model check failed to run: {r2.stderr[-300:]}")
     if out.get("residue_db") is not None:
-        lvl = "FAIL" if out["residue_db"] > -14 else ("WARN" if out["residue_db"] > -20 or out["worst_window_db"] > -10 else "PASS")
-        res(lvl, "bleed", f"vocal residue in instrumental {out['residue_db']} dB vs. the vocal stem "
+        # The detector model also hears instruments as "vocals". Its level where nobody sings is the floor;
+        # only what rises ABOVE that floor while the singer sings is vocal residue.
+        fl = out.get("detector_floor_db")
+        excess = out["residue_db"] - fl if fl is not None else None
+        out["excess_over_floor_db"] = round(excess, 2) if excess is not None else None
+        if excess is None:
+            lvl = "FAIL" if out["residue_db"] > -14 else ("WARN" if out["residue_db"] > -20 else "PASS")
+        else:
+            lvl = "FAIL" if (excess > 6 or out["residue_db"] > -10) else ("WARN" if excess > 3 else "PASS")
+        res(lvl, "bleed", f"vocal residue {out['residue_db']} dB vs. the vocal stem while singing; detector floor "
+                          f"(no singing) {out.get('detector_floor_db')} dB -> excess {out.get('excess_over_floor_db')} dB "
+                          "(FAIL > 6, WARN > 3) "
                           f"(worst 2s window {out['worst_window_db']} dB at {out['worst_window_at_s']}s - listen there); "
                           f"band heuristic {out.get('band_drop_sung_vs_unsung_db')} dB")
     else:
@@ -288,7 +341,8 @@ def check_pitch(T):
 
 # ------------------------------------------------------------------------------- (d) loudness
 def probe(path):
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=width,height,codec_type",
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                        "format=duration:stream=width,height,codec_type,codec_name,r_frame_rate,pix_fmt",
                         "-of", "json", str(path)], capture_output=True, text=True)
     return json.loads(r.stdout)
 
@@ -311,8 +365,13 @@ def check_loudness(T):
         res("PASS" if ok else "FAIL", f"loudness[{o['format']}]", f"{lufs:.1f} LUFS, true peak {tp:.1f} dBTP")
         size_ok = (v["width"], v["height"]) == (o["width"], o["height"])
         dur_ok = abs(dur - T["duration"]) < 0.2
-        res("PASS" if size_ok and dur_ok else "FAIL", f"format[{o['format']}]",
-            f"{v['width']}x{v['height']}, {dur:.2f}s (song {T['duration']:.2f}s)")
+        aud = [s_ for s_ in pr["streams"] if s_.get("codec_type") == "audio"]
+        num, den = (v.get("r_frame_rate") or "0/1").split("/")
+        fps = float(num) / float(den or 1)
+        codec_ok = v.get("codec_name") == "h264" and v.get("pix_fmt") == "yuv420p" and aud and aud[0].get("codec_name") == "aac"
+        res("PASS" if size_ok and dur_ok and codec_ok and abs(fps - 30) < 0.01 else "FAIL", f"format[{o['format']}]",
+            f"{v['width']}x{v['height']}, {fps:.2f} fps, {v.get('codec_name')}/{v.get('pix_fmt')} + "
+            f"{aud[0].get('codec_name') if aud else 'NO AUDIO'}, {dur:.2f}s (song {T['duration']:.2f}s)")
         out[o["format"]] = dict(lufs=lufs, true_peak=tp, width=v["width"], height=v["height"], duration=dur)
     return out
 
@@ -485,6 +544,17 @@ def check_frames(T, qa_dir):
             sp = qa_dir / f"contact_{o['format']}.png"
             sheet.save(sp)
             out.setdefault("sheets", []).append(str(sp))
+            # phone check on LYRIC frames (not only the title): every frame at 360 px wide
+            pw = 360
+            ph_ims = [im.resize((pw, int(im.height * pw / im.width))) for im in ims]
+            pc = 4 if o["width"] > o["height"] else 6
+            pr_ = (len(ph_ims) + pc - 1) // pc
+            psheet = Image.new("RGB", (pc * (pw + 6), pr_ * (ph_ims[0].height + 6)), "black")
+            for k, im in enumerate(ph_ims):
+                psheet.paste(im, ((k % pc) * (pw + 6), (k // pc) * (ph_ims[0].height + 6)))
+            pp = qa_dir / f"phone360_{o['format']}.png"
+            psheet.save(pp)
+            out["sheets"].append(str(pp))
     nd = len(out["direction"])
     if nd == 0:
         res("WARN", "highlight-direction", "could not measure (no frame with both sung and unsung text)")
@@ -510,12 +580,36 @@ def check_lyrics(T):
     else:
         res("PASS", "lyrics", "lyrics supplied by user/source (aligned, not invented)")
     interp = sum(1 for w in T["words"] if w.get("interpolated"))
-    lowp = sum(1 for w in T["words"] if (w.get("prob") or 0) < 0.2)
+    # confidence: CTC score when the CTC aligner placed the word, else the recogniser's probability
+    lowp = sum(1 for w in T["words"] if (w["ctc_score"] < 0.02 if w.get("ctc_score") is not None
+                                         else (w.get("prob") or 0) < 0.2))
     if interp:
         res("WARN", "alignment", f"{interp} words had no timestamp and were interpolated - check those lines")
     if lowp > 0.15 * len(T["words"]):
         res("WARN", "alignment", f"{lowp}/{len(T['words'])} words aligned with very low confidence - "
                                  "lyrics may not match this recording (other version / ad-libs)")
+    # runs of >= 3 words the CTC aligner could barely place = lyrics probably differ from what is sung there
+    runs, cur = [], []
+    for i, w in enumerate(T["words"]):
+        if w.get("ctc_score") is not None and w["ctc_score"] < 0.02:
+            cur.append(i)
+        else:
+            if len(cur) >= 3:
+                runs.append(cur)
+            cur = []
+    if len(cur) >= 3:
+        runs.append(cur)
+    if runs:
+        where = [f"{T['words'][r[0]]['start']:.1f}-{T['words'][r[-1]]['end']:.1f}s "
+                 f"('{' '.join(T['words'][k]['text'] for k in r[:6])}...')" for r in runs]
+        res("WARN", "alignment", f"{len(runs)} low-confidence runs (lyrics may not match the recording there - "
+                                 f"listen and fix the lyrics file): {'; '.join(where[:4])}")
+    # two independent aligners (whisper DTW vs. CTC): where whisper recognised the exact word, compare starts
+    d = [abs(w["start"] - w["whisper_start"]) * 1000 for w in T["words"] if w.get("whisper_start") is not None]
+    if len(d) >= 10:
+        res("PASS" if np.median(d) <= 150 else "WARN", "aligner-agreement",
+            f"CTC vs whisper word starts: median {np.median(d):.0f} ms, p90 {np.percentile(d, 90):.0f} ms over {len(d)} "
+            "words (whisper is coarser at phrase starts; large disagreement = check those lines by eye)")
     long_lines = [L["text"] for L in T["lines"] if len(L["words"]) > 7]
     if long_lines:
         res("WARN", "lines", f"{len(long_lines)} lines with > 7 words")

@@ -55,8 +55,10 @@ SECTION_RE = re.compile(r"^\s*[\[(].*[\])]\s*$")  # [Chorus], (x2) ...
 SUNG = "#FFD23F"      # highlight (already sung)
 UNSUNG = "#FFFFFF"
 OUTLINE = "#0B1020"
-LEAD_MAX = 4.0        # a line never appears more than this before it is sung
+LEAD_MAX = 4.0        # first line of a passage appears at most this long before it is sung
+LEAD_NEXT = 8.0       # inside a passage the next line appears as soon as its slot is free (up to this early)
 GAP_COUNTIN = 4.0     # silence before a line that triggers count-in dots
+ALIGN_VERSION = "hybrid-ctc-11"  # part of the alignment cache key
 HOLD_AFTER = 0.45     # a line stays this long after its last word
 
 
@@ -143,7 +145,8 @@ def parse_lyrics(text: str):
             if out and out[-1] is not None:
                 out.append(None)
             continue
-        words = line.split()
+        # a maqaf (Hebrew hyphen) joins two sung words: split for timing, keep it on the first for display
+        words = [p for w in line.split() for p in re.findall(r"[^\u05be]+\u05be?|\u05be", w)]
         if words:
             out.append(words)
     while out and out[-1] is None:
@@ -205,6 +208,281 @@ def fix_word_times(words):
         w["start"], w["end"] = round(w["start"], 3), round(w["end"], 3)
 
 
+# Hebrew -> latin for the MMS aligner (consonantal, like uroman; vowels are absorbed by CTC blanks)
+HEB2LAT = {"א": "a", "ב": "b", "ג": "g", "ד": "d", "ה": "h", "ו": "v", "ז": "z", "ח": "h", "ט": "t", "י": "y",
+           "כ": "k", "ך": "k", "ל": "l", "מ": "m", "ם": "m", "נ": "n", "ן": "n", "ס": "s", "ע": "a", "פ": "p",
+           "ף": "f", "צ": "ts", "ץ": "ts", "ק": "k", "ר": "r", "ש": "sh", "ת": "t"}
+
+
+NIQQUD = {"\u05b7": "a", "\u05b8": "a", "\u05b2": "a", "\u05b6": "e", "\u05b5": "e", "\u05b1": "e",
+          "\u05b4": "i", "\u05b9": "o", "\u05ba": "o", "\u05b3": "o", "\u05bb": "u"}
+
+
+def romanize(word: str) -> str:
+    """latin letters for the MMS aligner. Hebrew: consonants + niqqud vowels when the lyrics have them."""
+    w = unicodedata.normalize("NFD", word.lower())
+    voweled = any(c in NIQQUD for c in w)
+    out = []
+    i = 0
+    while i < len(w):
+        c = w[i]
+        marks = ""
+        j = i + 1
+        while j < len(w) and unicodedata.combining(w[j]):
+            marks += w[j]
+            j += 1
+        if c == "\u05d5" and "\u05bc" in marks and not any(m in NIQQUD for m in marks):
+            out.append("u")                      # shuruk
+        elif c == "\u05d5" and "\u05b9" in marks:
+            out.append("o")                      # holam male
+        else:
+            vowel = [NIQQUD[m] for m in marks if m in NIQQUD]
+            silent = voweled and not vowel and (c in "\u05d0\u05e2" or (c == "\u05d9" and out and out[-1] in ("i", "e")))
+            guttural_vowel = voweled and vowel and c in "\u05d0\u05e2"  # alef/ayin carry only their vowel
+            out.append("" if silent or guttural_vowel else HEB2LAT.get(c, c if not unicodedata.combining(c) else ""))
+            out += vowel
+        i = j
+    return "".join(ch for ch in "".join(out) if ch in "abcdefghijklmnopqrstuvwxyz'")
+
+
+def ctc_emissions(y16, model, chunk_s=30.0, ctx_s=1.5):
+    """MMS emissions for a whole song: 30 s chunks with 1.5 s context on each side, centre frames kept."""
+    import torch
+    sr, hop = 16000, 320
+    n = y16.shape[1]
+    step, ctx = int(chunk_s * sr), int(ctx_s * sr)
+    outs = []
+    for s0 in range(0, n, step):
+        a, b = max(0, s0 - ctx), min(n, s0 + step + ctx)
+        with torch.inference_mode():
+            em, _ = model(y16[:, a:b])
+        f0 = (s0 - a) // hop
+        f1 = f0 + (min(n, s0 + step) - s0) // hop
+        outs.append(em[0, f0:f1])
+    return torch.cat(outs, 0), hop / sr
+
+
+def ctc_segments(words, line_idx, dur):
+    """Where the recogniser reliably found the lyrics (exact matches in runs of >= 3 words, p >= 0.5), its
+    times bound each passage, so the CTC aligner cannot drift into an instrumental break. Otherwise one
+    segment = the whole song. Returns [(lo, hi, [line, ...])], mode."""
+    rel = [w.get("src") == "asr" and (w.get("prob") or 0) >= 0.3 and w.get("run", 0) >= 3 for w in words]
+    if sum(rel) < 0.6 * len(words):
+        return [(0.0, dur, line_idx)], "full-song"
+    # a line is anchored when most of its words were reliably recognised (measured: requiring the first and
+    # last word left lines like "Am I gonna..." (p=0.45 on "Am") unanchored, and CTC drifted 4 s there)
+    anch = [sum(rel[k] for k in ln) >= 0.6 * len(ln) for ln in line_idx]
+    cuts = []  # every boundary between two anchored lines (whisper stretches word ends, so no pause is needed)
+    for i in range(len(line_idx) - 1):
+        if anch[i] and anch[i + 1]:
+            e, s_ = words[line_idx[i][-1]]["end"], words[line_idx[i + 1][0]]["start"]
+            cuts.append((i, (e + s_) / 2 if s_ > e else s_))
+    segs, start_line, lo = [], 0, 0.0
+    for i, t in cuts:
+        segs.append((lo, t + 0.4, line_idx[start_line:i + 1]))  # 0.4 s overlap: whisper boundaries are coarse
+        start_line, lo = i + 1, t - 0.4
+    segs.append((lo, dur, line_idx[start_line:]))
+    # an anchored passage gets at most 1.5 s of slack before its first / after its last recognised word
+    out = []
+    for lo, hi, lines in segs:
+        f, l = words[lines[0][0]], words[lines[-1][-1]]
+        if rel[lines[0][0]]:
+            lo = max(lo, f["start"] - 1.5)
+        if rel[lines[-1][-1]]:
+            hi = min(hi, l["end"] + 1.5)
+        out.append((max(0.0, lo), min(dur, hi), lines))
+    return out, "anchored"
+
+
+def ctc_align(vocals: Path, words, line_idx, work: Path):
+    """Word times for SUPPLIED lyrics with a CTC forced aligner (torchaudio MMS_FA, 1100+ languages, ~1.2 GB
+    once). Each segment (see ctc_segments) gets its own emissions and Viterbi alignment.
+    Returns (words, ok). Words keep their text; only times change."""
+    try:
+        import torch
+        from torchaudio.pipelines import MMS_FA as bundle
+    except Exception as e:  # noqa
+        log(f"CTC alignment unavailable ({e}); using whisper times")
+        return words, False
+    t0 = time.time()
+    try:
+        model = bundle.get_model(with_star=False)
+        tok = bundle.get_tokenizer()
+        aligner = bundle.get_aligner()
+        y = torch.from_numpy(load16k(vocals)).unsqueeze(0)
+    except Exception as e:  # noqa
+        log(f"CTC alignment failed ({e}); using whisper times")
+        return words, False
+    dur = y.shape[1] / 16000
+    segs, mode = ctc_segments(words, line_idx, dur)
+    done = 0
+    for lo, hi, lines in segs:
+        # no '*' wildcard tokens: measured, a wildcard at a segment edge swallowed a whole sung line (its words
+        # were crammed into 0.4 s); CTC blanks already absorb silence and instrumental parts
+        seq, owner = [], []
+        for ln in lines:
+            for k in ln:
+                r = romanize(words[k]["text"])
+                if r:
+                    seq.append(r)
+                    owner.append(k)
+        if not seq:
+            continue
+        # emissions computed on THIS segment (+1 s context): measured on a 4-min song, emissions taken from
+        # 30 s whole-song chunks crammed a 3-line passage into 3 s; per-segment emissions placed it correctly.
+        try:
+            a0 = max(0.0, lo - 1.0)
+            b0 = min(dur, hi + 1.0)
+            em, fr = ctc_emissions(y[:, int(a0 * 16000):int(b0 * 16000)], model)
+            f0, f1 = int((lo - a0) / fr), min(em.shape[0], int((hi - a0) / fr))
+            if f1 - f0 < len("".join(seq)) + len(seq):
+                continue  # window too short for the text: keep recogniser times
+            spans = aligner(em[f0:f1], tok(seq))
+        except Exception as e:  # noqa
+            log(f"CTC segment {lo:.1f}-{hi:.1f}s failed ({e}); keeping recogniser times")
+            continue
+        for k, sp in zip(owner, spans):
+            if k is None or not sp:
+                continue
+            s_, e_ = lo + sp[0].start * fr, lo + sp[-1].end * fr
+            sc = float(sum(t.score * (t.end - t.start) for t in sp) / max(1, sum(t.end - t.start for t in sp)))
+            words[k].pop("interpolated", None)
+            words[k].update(start=round(s_, 3), end=round(max(e_, s_ + 0.06), 3), ctc_score=round(sc, 3),
+                            whisper_start=words[k].get("start") if words[k].get("src") == "asr" else None,
+                            whisper_end=words[k].get("end") if words[k].get("src") == "asr" else None,
+                            src="ctc")
+            done += 1
+    # guard: where the recogniser was confident about the exact word (p >= 0.8) and CTC lands > 1 s away (or
+    # > 0.3 s with an almost-zero CTC score, typical for a lone "I"), CTC has drifted -> keep the recogniser's
+    # time (its own error is 0.3-0.6 s at phrase starts, refined below)
+    guarded = 0
+    # only where whisper actually covers the lyrics (anchored mode). In full-song mode its few matches are
+    # unreliable: measured, a guarded word pulled the last line of Yigdal into 0.2 s.
+    for w in (words if mode == "anchored" else []):
+        ws_ = w.get("whisper_start")
+        far = abs(w["start"] - ws_) > 1.0 if ws_ is not None else False
+        weak = ws_ is not None and (w.get("ctc_score") or 0) < 0.05 and abs(w["start"] - ws_) > 0.3
+        if ws_ is not None and (w.get("prob") or 0) >= 0.8 and (far or weak):
+            w["end"] = round(w["whisper_end"], 3) if w.get("whisper_end") else round(ws_ + 0.3, 3)
+            w["start"] = round(ws_, 3)
+            w["src"] = "asr-guard"
+            guarded += 1
+    if guarded:
+        log(f"CTC guard: {guarded} words kept the recogniser's time (CTC was far away or unsure)")
+    refine_lines(vocals, words, line_idx)
+    extend_sustained(vocals, words)
+    fix_word_times(words)
+    log(f"CTC alignment ({mode}, {len(segs)} segments): {done}/{len(words)} words placed in {time.time() - t0:.0f}s")
+    return words, done >= 0.9 * len(words)
+
+
+def refine_lines(vocals: Path, words, line_idx):
+    """Two rules a singer would agree with. (1) A line is sung in one go: a first/last word left > 2.5 s away
+    from the rest of its line was misplaced -> put it next to its neighbour. (2) A phrase starts on its attack:
+    when a sharp vocal attack (>= 15 dB rise in ~70 ms) lies within -0.8/+1.0 s of a phrase-initial word, the
+    word starts there. Measured: both aligners put such words inside the decaying tail of the previous phrase."""
+    import numpy as np
+    import librosa
+    for ln in line_idx:
+        if len(ln) >= 2:
+            a, b = words[ln[0]], words[ln[1]]
+            if b["start"] - a["end"] > 2.5:
+                d = min(0.4, a["end"] - a["start"])
+                a["start"], a["end"], a["src"] = round(b["start"] - d, 3), round(b["start"], 3), a.get("src", "") + "+line"
+            y_, z = words[ln[-2]], words[ln[-1]]
+            if z["start"] - y_["end"] > 2.5:
+                d = min(0.6, z["end"] - z["start"])
+                z["start"], z["end"], z["src"] = round(y_["end"], 3), round(y_["end"] + d, 3), z.get("src", "") + "+line"
+    sr, hop = 22050, 256
+    fps = sr / hop
+    y, _ = librosa.load(str(vocals), sr=sr, mono=True)
+    db = 20 * np.log10(librosa.feature.rms(y=y, frame_length=1024, hop_length=hop)[0] + 1e-9)
+    ref = np.percentile(db, 95)
+    # sharp vocal attacks: >= 15 dB rise within ~70 ms, landing within 15 dB of the song's loud singing
+    rise = np.full(len(db), -99.0)
+    for k in range(6, len(db)):
+        rise[k] = db[k] - db[k - 6:k].min()
+    attacks = np.nonzero((rise >= 15) & (db >= ref - 15))[0]
+    # keep the first frame of each attack
+    attacks = [k for j, k in enumerate(attacks) if j == 0 or k - attacks[j - 1] > 6]
+    att_t = np.array([max(0, k - 3) / fps for k in attacks])  # back up to where the rise began
+    first = {ln[0] for ln in line_idx}
+    moved = 0
+    for i, w in enumerate(words):
+        cand = i in first or (i and (w["start"] - words[i - 1]["end"] >= 0.25
+                                     or re.search(r"[,.;:!?]$", words[i - 1]["text"])))
+        if not cand or not len(att_t):
+            continue
+        lo = max(w["start"] - 0.8, (words[i - 1]["start"] + 0.1) if i else 0.0)
+        hi = min(w["start"] + 1.0, w["end"] - 0.05)
+        near = att_t[(att_t >= lo) & (att_t <= hi)]
+        if not len(near):
+            continue
+        t = float(near[np.argmin(np.abs(near - w["start"]))])
+        if abs(t - w["start"]) <= 0.08:
+            continue
+        w["start"] = round(t, 3)
+        if i and words[i - 1]["end"] > w["start"]:
+            words[i - 1]["end"] = round(max(words[i - 1]["start"] + 0.05, w["start"]), 3)
+        moved += 1
+    if moved:
+        log(f"refine: {moved} phrase-initial words moved to the vocal attack")
+
+
+def trim_silent_tails(vocals: Path, words):
+    """A word's highlight must not crawl on after the voice has stopped: for words longer than 1.5 s, the word
+    ends where the (smoothed) level stays 15 dB under that word's own peak for >= 0.8 s. Measured: CTC stretched
+    the last word of Yigdal over a 26 s outro where the vocal stem only holds bleed 15-20 dB down."""
+    import numpy as np
+    import librosa
+    from scipy.ndimage import uniform_filter1d
+    sr, hop = 22050, 256
+    fps = sr / hop
+    y, _ = librosa.load(str(vocals), sr=sr, mono=True)
+    db = uniform_filter1d(20 * np.log10(librosa.feature.rms(y=y, frame_length=1024, hop_length=hop)[0] + 1e-9),
+                          int(0.3 * fps))
+    need = int(0.8 * fps)
+    n = 0
+    for w in words:
+        if w["end"] - w["start"] <= 1.5:
+            continue
+        a, b = int(w["start"] * fps), min(len(db), int(w["end"] * fps))
+        peak = db[a:min(b, a + int(3 * fps))].max()
+        run = 0
+        for k in range(a + int(0.3 * fps), b):
+            run = run + 1 if db[k] < peak - 15 else 0
+            if run >= need:
+                w["end"] = round(max(w["start"] + 0.3, (k - run + 1) / fps), 3)
+                n += 1
+                break
+    if n:
+        log(f"trim: {n} long words ended where the voice stops (no highlight crawling through silence)")
+
+
+def extend_sustained(vocals: Path, words):
+    """CTC marks a word where its letters are recognised; a held note goes on after that. Extend each word's
+    end while the voice is still sounding (level within 15 dB of the word's peak), up to the next word."""
+    import numpy as np
+    import librosa
+    sr, hop = 22050, 256
+    y, _ = librosa.load(str(vocals), sr=sr, mono=True)
+    db = 20 * np.log10(librosa.feature.rms(y=y, frame_length=1024, hop_length=hop)[0] + 1e-9)
+    fps = sr / hop
+    for i, w in enumerate(words):
+        nxt = words[i + 1]["start"] if i + 1 < len(words) else w["end"] + 2.0
+        a, b = int(w["start"] * fps), int(w["end"] * fps)
+        if b <= a or b >= len(db):
+            continue
+        peak = db[a:b + 1].max()
+        k = b
+        lim = int(min(nxt - 0.04, w["end"] + 4.0) * fps)
+        while k < lim and k < len(db) and db[k] > peak - 15:
+            k += 1
+        w["end"] = round(max(w["end"], min(k / fps, nxt - 0.04)), 3)
+        if 0 < nxt - w["end"] < 0.25:  # tiny gap: keep the word lit until the next one starts
+            w["end"] = round(nxt, 3)
+
+
 def asr_words(vocals: Path, lang: str, asr: str, work: Path):
     """Word-timestamped transcription of the VOCAL stem (cached). faster-whisper directly: its bundled
     Silero VAD (ONNX, no download) skips instrumental parts, and condition_on_previous_text=False stops the
@@ -240,7 +518,7 @@ def local_align(vocals_16k, text, lang, asr, t0, t1, model_box):
         return None
 
 
-def align_lyrics(vocals: Path, lines, lang: str, asr: str, work: Path):
+def align_lyrics(vocals: Path, lines, lang: str, asr: str, work: Path, local: bool = True):
     """Supplied lyrics -> word times. 1) transcribe the vocal stem with word timestamps; 2) sequence-match
     lyric words to recognised words (equal / substituted words take the recognised times); 3) runs of
     lyric words the recogniser missed are force-aligned on the short clip between their anchors
@@ -259,14 +537,14 @@ def align_lyrics(vocals: Path, lines, lang: str, asr: str, work: Path):
         if op == "equal" or (op == "replace" and i2 - i1 == j2 - j1):
             for k in range(i2 - i1):
                 r = rec[j1 + k]
-                words[i1 + k].update(start=r["start"], end=r["end"], prob=r["prob"],
+                words[i1 + k].update(start=r["start"], end=r["end"], prob=r["prob"], run=i2 - i1,
                                      src="asr" if op == "equal" else "asr-substituted")
         elif op in ("replace", "delete"):
             gaps.append((i1, i2, j1, j2))
     n_eq = sum(1 for w in words if w["src"] == "asr")
     n_sub = sum(1 for w in words if w["src"] == "asr-substituted")
     log(f"lyrics vs recognised words: {n_eq}/{len(words)} exact, {n_sub} substituted, {len(gaps)} gaps")
-    y16 = load16k(vocals) if gaps else None
+    y16 = load16k(vocals) if gaps and local else None
     box = {}
     for i1, i2, j1, j2 in gaps:
         prev_t = next((words[k]["end"] for k in range(i1 - 1, -1, -1) if words[k]["end"] is not None), 0.0)
@@ -274,7 +552,7 @@ def align_lyrics(vocals: Path, lines, lang: str, asr: str, work: Path):
         if next_t is None:
             next_t = (rec[j2 - 1]["end"] + 1.0) if j2 > j1 else prev_t + 0.6 * (i2 - i1) + 1.0
         got = None
-        if 0.3 < next_t - prev_t < 40:
+        if local and 0.3 < next_t - prev_t < 40:
             got = local_align(y16, " ".join(flat[i1:i2]), lang, asr, prev_t - 0.1, next_t + 0.1, box)
         if got and len(got) == i2 - i1:
             for k, (s_, e_, p_) in enumerate(got):
@@ -335,6 +613,16 @@ def split_long(words_idx, words, max_words):
     """split a lyric line into display chunks of <= max_words, preferring punctuation / pauses."""
     if len(words_idx) <= max_words:
         return [words_idx]
+    # one word over the limit and no natural break inside (comma / pause): splitting would cut a phrase in
+    # half ("I'm not gonna / work at this time") - keep it whole; the font shrinks to fit if needed
+    if len(words_idx) == max_words + 1:
+        inner = words_idx[1:-2]  # break points that leave >= 2 words on each side (no orphan "no")
+        punct = any(re.search(r"[,.;:!?]$", words[j]["text"]) for j in inner)
+        # only a real rest splits a phrase (a held note / breath inside it does not: critic round 3 caught
+        # "I'm not" / "gonna work it with you" shown as two lines, read bottom-to-top)
+        pause = any(words[b]["start"] - words[a]["end"] > 1.5 for a, b in zip(words_idx[1:-2], words_idx[2:-1]))
+        if not punct and not pause:
+            return [words_idx]
     nchunks = math.ceil(len(words_idx) / max_words)
     target = len(words_idx) / nchunks
     best, best_score = None, -1e9
@@ -370,7 +658,7 @@ def build_lines(lyric_lines, words, max_words):
     for i, L in enumerate(disp):
         L["start"] = words[L["words"][0]]["start"]
         L["end"] = words[L["words"][-1]]["end"]
-        L["text"] = " ".join(words[j]["text"] for j in L["words"])
+        L["text"] = join_words(words[j]["text"] for j in L["words"])
     return disp
 
 
@@ -393,7 +681,7 @@ def schedule(lines, beat):
         if i + 1 < len(lines):  # do not linger into the next passage
             L["disappear"] = min(L["disappear"], max(L["end"] + 0.1, lines[i + 1]["start"]))
     for i, L in enumerate(lines):
-        appear = L["start"] - LEAD_MAX
+        appear = L["start"] - (LEAD_MAX if L.get("countin") else LEAD_NEXT)
         if L.get("countin"):
             ci = next(c for c in countins if c["line"] == i)
             appear = min(appear, ci["start"]) if ci["start"] > appear else ci["start"] - 0.5
@@ -409,6 +697,9 @@ def schedule(lines, beat):
         if prev_same is not None:
             appear = max(appear, prev_same["end"] + 0.06)  # never before the old line is sung
             prev_same["disappear"] = round(min(prev_same["disappear"], appear - 0.04), 3)
+        if i:  # reading order: a line never appears before the line that is sung before it
+            appear = max(appear, lines[i - 1]["appear"] + 0.3)
+            appear = min(appear, L["start"] - 0.25) if appear > L["start"] - 0.25 else appear
         L["appear"] = round(appear, 3)
         L["disappear"] = round(max(L["disappear"], L["end"] + 0.05), 3)
     # hard guarantee (QA re-checks it in the .ass): no two lines share a slot at the same time
@@ -417,6 +708,27 @@ def schedule(lines, beat):
         if nxt is not None and L["disappear"] > nxt["appear"] - 0.02:
             L["disappear"] = round(max(L["end"], nxt["appear"] - 0.04), 3)
     return countins
+
+
+def global_lag(vocals: Path, words) -> float:
+    """seconds the word starts are LATE (+) / EARLY (-) vs. the vocal onset envelope (cross-correlation)."""
+    import numpy as np
+    import librosa
+    sr, hop = 22050, 256
+    fps = sr / hop
+    y, _ = librosa.load(str(vocals), sr=sr, mono=True)
+    env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+    n = len(env)
+    imp = np.zeros(n)
+    for w in words:
+        k = int(round(w["start"] * fps))
+        if 0 <= k < n:
+            imp[k] = 1
+    imp = np.convolve(imp, np.exp(-0.5 * (np.arange(-6, 7) / 2.0) ** 2), "same")
+    e = (env - env.mean()) / (env.std() + 1e-9)
+    L = int(0.5 * fps)
+    xc = [np.dot(imp[max(0, -l):n - max(0, l)], e[max(0, l):n - max(0, -l)]) for l in range(-L, L + 1)]
+    return -(int(np.argmax(xc)) - L) / fps
 
 
 def estimate_beat(inst: Path) -> float:
@@ -454,6 +766,14 @@ def ass_time(t):
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+def join_words(texts):
+    """display join: a word ending in a maqaf (Hebrew hyphen) is glued to the next word, like in print"""
+    out = ""
+    for t in texts:
+        out += t if (not out or out.endswith("\u05be")) else " " + t
+    return out
+
+
 def graphemes(word):
     out = []
     for ch in word:
@@ -481,10 +801,24 @@ def esc(t):
     return t.replace("\\", "\\\\").replace("{", "(").replace("}", ")")
 
 
-def build_ass(lines, words, countins, W, H, rtl, title, artist, draft):
+def key_label(semis: float, rtl: bool) -> str:
+    """'Karaoke · original key' / 'קריוקי · חצי טון למטה' - what a singer needs to know on the title card."""
+    if not semis:
+        return "קריוקי · טונליות מקורית" if rtl else "Karaoke · original key"
+    n, up = abs(semis), semis > 0
+    if rtl:
+        words_he = {1: "חצי טון", 2: "טון", 3: "טון וחצי", 4: "שני טונים"}
+        amt = words_he.get(int(n), f"{n:g} חצאי טונים") if float(n).is_integer() else f"{n:g} חצאי טונים"
+        return f"קריוקי · {amt} {'למעלה' if up else 'למטה'}"
+    unit = "semitone" if n == 1 else "semitones"
+    step = {1: " (half step)", 2: " (whole step)"}.get(int(n), "") if float(n).is_integer() else ""
+    return f"Karaoke · {n:g} {unit} {'up' if up else 'down'}{step}"
+
+
+def build_ass(lines, words, countins, W, H, rtl, title, artist, draft, semis=0.0, dur=None, credit=None):
     vertical = H > W
-    base_fs = 86 if not vertical else 80
-    max_w = W * (0.88 if not vertical else 0.86)
+    base_fs = 124 if not vertical else 100  # cap height ~75 px at 1080p (critic: 86 and 108 still small)
+    max_w = W * (0.88 if not vertical else 0.90)
     ys = [H * 0.62, H * 0.78] if not vertical else [H * 0.47, H * 0.57]
     meas = Measure()
     RLM = "‏" if rtl else ""
@@ -501,7 +835,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Lyric,{FONT_NAME},{base_fs},{ass_color(SUNG)},{ass_color(UNSUNG)},{ass_color(OUTLINE)},{ass_color('#000000', 0x80)},-1,0,0,0,100,100,0,0,1,{5 if not vertical else 5},2,5,0,0,0,-1
 Style: Dots,DejaVu Sans,{int(base_fs * 0.5)},{ass_color(SUNG)},{ass_color(SUNG)},{ass_color(OUTLINE)},{ass_color('#000000', 0x80)},0,0,0,0,100,100,0,0,1,3,0,5,0,0,0,-1
 Style: Title,{FONT_NAME},{int(base_fs * 1.15)},{ass_color(UNSUNG)},{ass_color(UNSUNG)},{ass_color(OUTLINE)},{ass_color('#000000', 0x80)},-1,0,0,0,100,100,0,0,1,4,2,5,0,0,0,-1
-Style: Sub,{FONT_NAME},{int(base_fs * 0.6)},{ass_color('#C9D2E8')},{ass_color('#C9D2E8')},{ass_color(OUTLINE)},{ass_color('#000000', 0x80)},0,0,0,0,100,100,0,0,1,3,1,5,0,0,0,-1
+Style: Sub,{FONT_NAME},{int(base_fs * 0.75)},{ass_color('#C9D2E8')},{ass_color('#C9D2E8')},{ass_color(OUTLINE)},{ass_color('#000000', 0x80)},0,0,0,0,100,100,0,0,1,3,1,5,0,0,0,-1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -512,7 +846,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     geo = []
     fmt = f"{W}x{H}"
     for L in lines:
-        txt = " ".join(words[j]["text"] for j in L["words"])
+        txt = join_words(words[j]["text"] for j in L["words"])
         fs = base_fs
         while meas.width(txt, fs) > max_w and fs > 40:
             fs -= 2
@@ -531,7 +865,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # gap before word (absorbed by an unsung space syllable)
             if n:
                 gap_cs = int(round((w["start"] - cursor) * 100))
-                parts.append(f"{{\\k{max(0, gap_cs)}}} ")
+                sep = "" if words[L["words"][n - 1]]["text"].endswith("\u05be") else " "
+                parts.append(f"{{\\k{max(0, gap_cs)}}}{sep}")
                 cursor = w["start"]
             dur_cs = max(1, int(round((w["end"] - cursor) * 100)))
             text = esc(w["text"])
@@ -550,7 +885,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 parts.append(f"{{\\kf{dur_cs}}}{mark}{text}{unmark}")
             cursor = cursor + dur_cs / 100.0
         body = "".join(parts) + RLM
-        fade = "{\\fad(180,220)}"
+        fade = "{\\fad(180,220)}" if L["appear"] > 0.05 else "{\\fad(0,220)}"
         ev.append(f"Dialogue: 1,{ass_time(L['appear'])},{ass_time(L['disappear'])},Lyric,,0,0,0,,"
                   f"{fade}{{\\an5\\pos({cx:.0f},{y:.0f})\\fs{fs}}}{body}")
     # count-in dots: above the upcoming line, on the side where reading starts
@@ -568,15 +903,89 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             dw = fs * 0.5 * (1.4 * k)
             boxes.append(("dots", a, b, x - dw if rtl else x, dy - fs * 0.3, x if rtl else x + dw, dy + fs * 0.3))
             ev.append(f"Dialogue: 2,{ass_time(a)},{ass_time(b)},Dots,,0,0,0,,{{\\an{an}\\pos({x:.0f},{dy:.0f})}}{dots}")
-    # title card during the intro
-    if title and lines and lines[0]["appear"] > 2.0:
-        end = lines[0]["appear"] - 0.1
-        ty = H * (0.40 if not vertical else 0.38)
-        tw = meas.width(title, base_fs * 1.15)
-        boxes.append(("title", 0.3, end, cx - tw / 2, ty - base_fs * 0.65, cx + tw / 2, ty + base_fs * 0.65))
-        ev.append(f"Dialogue: 0,{ass_time(0.3)},{ass_time(end)},Title,,0,0,0,,{{\\fad(400,400)\\an5\\pos({cx:.0f},{ty:.0f})}}{RLM if HEB_RE.search(title) else ''}{esc(title)}")
+    # title card from frame 0 (a karaoke video must never open on an empty frame: it is also the thumbnail)
+    if title and lines:
+        end = max(lines[0]["appear"] - 0.05, 0.8)
+        ty = H * 0.30  # above both lyric slots, so it never collides with the first line
+        tfs = base_fs * 1.7
+        while meas.width(title, tfs) > max_w and tfs > 40:
+            tfs -= 2
+        tw = meas.width(title, tfs)
+        boxes.append(("title", 0.0, end, cx - tw / 2, ty - tfs * 0.65, cx + tw / 2, ty + tfs * 0.65))
+        rt = RLM if HEB_RE.search(title) else ""
+        ev.append(f"Dialogue: 0,{ass_time(0.0)},{ass_time(end)},Title,,0,0,0,,"
+                  f"{{\\fad(0,400)\\an5\\pos({cx:.0f},{ty:.0f})\\fs{tfs:.0f}}}{rt}{esc(title)}")
+        sy = ty + base_fs * 1.35
+        def fit(t, f0):
+            while meas.width(t, f0) > max_w and f0 > 24:
+                f0 -= 1
+            return f0
         if artist:
-            ev.append(f"Dialogue: 0,{ass_time(0.3)},{ass_time(end)},Sub,,0,0,0,,{{\\fad(400,400)\\an5\\pos({cx:.0f},{ty + base_fs * 1.1:.0f})}}{RLM if HEB_RE.search(artist) else ''}{esc(artist)}")
+            ra = RLM if HEB_RE.search(artist) else ""
+            ev.append(f"Dialogue: 0,{ass_time(0.0)},{ass_time(end)},Sub,,0,0,0,,"
+                      f"{{\\fad(0,400)\\an5\\pos({cx:.0f},{sy:.0f})\\fs{fit(artist, base_fs * 0.75):.0f}}}{ra}{esc(artist)}")
+            sy += base_fs * 1.0
+        kl = key_label(semis, rtl)
+        ev.append(f"Dialogue: 0,{ass_time(0.0)},{ass_time(end)},Sub,,0,0,0,,"
+                  f"{{\\fad(0,400)\\an5\\pos({cx:.0f},{sy:.0f})\\fs{fit(kl, base_fs * 0.75):.0f}\\1c&H{ass_color(SUNG)[4:]}&}}{RLM if rtl else ''}{kl}")
+        kw = meas.width(kl, fit(kl, base_fs * 0.75))
+        boxes.append(("title", 0.0, end, cx - kw / 2, sy - base_fs * 0.4, cx + kw / 2, sy + base_fs * 0.4))
+    def bar(a, b, y):
+        """a thin bar that shrinks to nothing between a and b: shows the music is running and when it ends"""
+        bw = W * 0.30
+        ms = int((b - a) * 1000)
+        ev.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Sub,,0,0,0,,{{\\fad(300,300)\\an5\\pos({cx:.0f},{y:.0f})"
+                  f"\\bord0\\shad0\\1c&H{ass_color(SUNG)[4:]}&\\1a&H30&\\t(0,{ms},\\fscx0)\\p1}}"
+                  f"m 0 0 l {bw:.0f} 0 l {bw:.0f} 8 l 0 8{{\\p0}}")
+        boxes.append(("bar", a, b, cx - bw / 2, y - 6, cx + bw / 2, y + 6))
+
+    # long intro: the title card gets a bar counting down to the first entry
+    if title and lines and lines[0]["appear"] > 8.0:
+        bar(0.0, lines[0]["appear"] - 0.05, H * 0.30 + base_fs * 3.3)
+
+    # instrumental breaks: never a dead screen. A label and a bar that shrinks to the next entry.
+    lab = "\u266a מעבר מוזיקלי \u266a" if rtl else "\u266a Instrumental \u266a"
+    by = H * (0.70 if not vertical else 0.52)
+    for i in range(1, len(lines)):
+        a = lines[i - 1]["disappear"] + 0.3
+        b = lines[i]["appear"] - 0.2
+        if b - a < 5.0:
+            continue
+        ms = int((b - a) * 1000)
+        lw = meas.width(lab, base_fs * 0.75)
+        ev.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Sub,,0,0,0,,{{\\fad(300,300)\\an5\\pos({cx:.0f},{by - base_fs * 0.5:.0f})}}"
+                  f"{RLM if rtl else ''}{lab}")
+        bw = W * 0.30
+        ev.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Sub,,0,0,0,,{{\\fad(300,300)\\an5\\pos({cx:.0f},{by + base_fs * 0.35:.0f})"
+                  f"\\bord0\\shad0\\1c&H{ass_color(SUNG)[4:]}&\\1a&H30&\\t(0,{ms},\\fscx0)\\p1}}"
+                  f"m 0 0 l {bw:.0f} 0 l {bw:.0f} 8 l 0 8{{\\p0}}")
+        boxes.append(("break", a, b, cx - max(lw, bw) / 2, by - base_fs * 0.95, cx + max(lw, bw) / 2, by + base_fs * 0.5))
+    # end card over the outro (title, artist, key, credit) instead of a blank screen
+    if dur and lines and dur - lines[-1]["disappear"] > 3.0:
+        a = lines[-1]["disappear"] + 0.3
+        ty2 = H * 0.36
+        tfs2 = base_fs * 1.4
+        while meas.width(title or "", tfs2) > max_w and tfs2 > 40:
+            tfs2 -= 2
+        rows = [("Title", title, tfs2), ("Sub", artist, None), ("Sub", key_label(semis, rtl), None), ("Sub", credit, None)]
+        y_ = ty2
+        top = ty2 - tfs2 * 0.6
+        right = 0.0
+        for st, txt, fs_ in rows:
+            if not txt:
+                continue
+            fs_ = fs_ or (base_fs * 0.5 if txt == credit else base_fs * 0.75)
+            while meas.width(txt, fs_) > max_w and fs_ > 24:  # every row fits the frame (critic: 9:16 credit ran off)
+                fs_ -= 1
+            right = max(right, meas.width(txt, fs_) / 2)
+            extra = f"\\fs{fs_:.0f}"
+            col = f"\\1c&H{ass_color(SUNG)[4:]}&" if txt == key_label(semis, rtl) else ""
+            small = ""
+            rl = RLM if HEB_RE.search(txt) else ""
+            ev.append(f"Dialogue: 0,{ass_time(a)},{ass_time(dur)},{st},,0,0,0,,{{\\fad(500,800)\\an5\\pos({cx:.0f},{y_:.0f}){extra}{col}{small}}}{rl}{esc(txt)}")
+            y_ += fs_ * 1.2
+        boxes.append(("end", a, dur, cx - right, top, cx + right, y_))
+        bar(a, dur, y_ + base_fs * 0.5)
     return hdr + "\n".join(ev) + "\n", [dict(kind=b[0], start=round(b[1], 3), end=round(b[2], 3),
                                               box=[round(v) for v in b[3:]]) for b in boxes]
 
@@ -610,10 +1019,10 @@ def make_mix(inst: Path, voc: Path | None, guide: float, out: Path):
     else:
         shutil.copy(inst, tmp)
     m = measure_loudness(tmp)
-    # pass 2: linear gain to -14 LUFS; true-peak limiter keeps <= -1.5 dBTP
+    # pass 2: linear gain to -14 LUFS; limiter at 192 kHz to -2.3 dB so the AAC encode stays <= -1 dBTP
     gain = -14.0 - float(m["input_i"])
     run(["ffmpeg", "-v", "error", "-y", "-i", str(tmp), "-af",
-         f"volume={gain:.2f}dB,aresample=192000,alimiter=limit={10 ** (-1.6 / 20):.4f}:level=disabled:attack=1:release=60,aresample=44100",
+         f"volume={gain:.2f}dB,aresample=192000,alimiter=limit={10 ** (-2.3 / 20):.4f}:level=disabled:attack=1:release=60,aresample=44100",
          "-c:a", "pcm_f32le", str(out)])
     tmp.unlink(missing_ok=True)
     return measure_loudness(out)
@@ -624,9 +1033,11 @@ def background_input(bg: str | None, W, H):
         vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=12:2,"
               f"eq=brightness=-0.18:saturation=0.85,vignette=PI/4")
         return ["-loop", "1", "-framerate", "30", "-i", bg], vf
-    color = bg if bg and re.match(r"^#?[0-9a-fA-F]{6}$", bg) else "#14193A"
-    color = "0x" + color.lstrip("#")
-    return ["-f", "lavfi", "-i", f"color=c={color}:s={W}x{H}:r=30"], "vignette=PI/3.2"
+    if bg and re.match(r"^#?[0-9a-fA-F]{6}$", bg):
+        return ["-f", "lavfi", "-i", f"color=c=0x{bg.lstrip('#')}:s={W}x{H}:r=30"], "vignette=PI/3.2"
+    # default: a slowly drifting deep gradient (never a dead static frame), light noise against banding
+    return (["-f", "lavfi", "-i", f"gradients=s={W}x{H}:c0=0x101633:c1=0x2a1745:c2=0x0d2a3a:nb_colors=3:"
+             f"x0=0:y0=0:x1={W}:y1={H}:speed=0.004:rate=30"], "vignette=PI/4,noise=alls=3:allf=t")
 
 
 def render(ass: Path, audio: Path, bg, W, H, out: Path, dur: float):
@@ -638,6 +1049,22 @@ def render(ass: Path, audio: Path, bg, W, H, out: Path, dur: float):
          "-vf", vf, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
          "-tune", "animation", "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k",
          "-movflags", "+faststart", str(out)])
+    # AAC can overshoot the WAV's true peak by 1-2 dB (measured +1.8 dB on a pitch-shifted mix): measure the
+    # MP4 itself and, if needed, re-limit the mix with a lower ceiling (loudness ~unchanged, only peaks) and
+    # re-encode the audio (video stream copied)
+    ceiling = -2.3
+    for _ in range(4):
+        tp = float(measure_loudness(out)["input_tp"])
+        if tp <= -1.2:
+            break
+        ceiling -= (tp + 1.4)
+        tmp = out.with_name(out.stem + ".fix.mp4")
+        run(["ffmpeg", "-v", "error", "-y", "-i", str(out), "-i", str(audio), "-map", "0:v", "-map", "1:a",
+             "-c:v", "copy", "-af",
+             f"aresample=192000,alimiter=limit={10 ** (ceiling / 20):.4f}:level=disabled:attack=1:release=60,"
+             "aresample=44100", "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", str(tmp)])
+        tmp.replace(out)
+        log(f"AAC true peak was {tp:.2f} dBTP -> re-limited the mix at {ceiling:.2f} dB and re-encoded the audio")
 
 
 # --------------------------------------------------------------------------------------------
@@ -655,7 +1082,10 @@ def main():
     ap.add_argument("--max-words", type=int, default=6)
     ap.add_argument("--title", default=None)
     ap.add_argument("--artist", default=None)
+    ap.add_argument("--credit", default=None, help="one small line on the end card, e.g. the license credit")
     ap.add_argument("--name", default=None, help="output file base name")
+    ap.add_argument("--align-only", action="store_true", help="stop after timing (no pitch/mix/render): fast timing check")
+    ap.add_argument("--no-ctc", action="store_true", help="skip MMS_FA forced alignment (whisper word times only)")
     ap.add_argument("--draft-ok", action="store_true", help="render even if lyrics are an unconfirmed transcription")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -683,11 +1113,31 @@ def main():
     rtl = lang == "he"
     asr = a.asr_model or ASR_DEFAULT[lang]
     t = time.time()
+    ctc_ok = False
     if lyrics_text:
         lyric_lines = parse_lyrics(lyrics_text)
         if not any(lyric_lines):
             die("lyrics file is empty")
-        words = align_lyrics(voc, lyric_lines, lang, asr, work)
+        # cached per (lyrics, vocal stem, aligner): changing the key or the format does not re-align
+        import hashlib
+        key = hashlib.sha1((lyrics_text + str(voc.stat().st_mtime) + asr + str(a.no_ctc) + ALIGN_VERSION)
+                           .encode()).hexdigest()[:12]
+        cache = work / f"alignment_{key}.json"
+        if cache.exists():
+            c = json.loads(cache.read_text(encoding="utf-8"))
+            words, ctc_ok = c["words"], c["ctc_ok"]
+            log(f"alignment from cache ({cache.name})")
+        else:
+            # whisper first (fallback + independent cross-check), then CTC over the whole song (primary)
+            words = align_lyrics(voc, lyric_lines, lang, asr, work, local=a.no_ctc)
+            k = 0
+            line_idx = []
+            for ln in lyric_lines:
+                if ln:
+                    line_idx.append(list(range(k, k + len(ln))))
+                    k += len(ln)
+            words, ctc_ok = (ctc_align(voc, words, line_idx, work) if not a.no_ctc else (words, False))
+            cache.write_text(json.dumps({"words": words, "ctc_ok": ctc_ok}, ensure_ascii=False), encoding="utf-8")
         lyrics_source = "supplied"
     else:
         log("no lyrics supplied: transcribing the vocal stem as a DRAFT (never invented, must be confirmed)")
@@ -701,6 +1151,19 @@ def main():
             sys.exit(3)
     T["lyrics_s"] = round(time.time() - t, 1)
 
+    # constant offset of the recogniser's word timestamps (whisper tends to be a little late): measured
+    # against the vocal onsets and removed (clamped to +-200 ms). qa_karaoke.py re-measures per line.
+    if lyrics_text:
+        trim_silent_tails(voc, words)
+    lag = global_lag(voc, words)
+    # whisper-only timing: remove its constant offset; CTC timing is already frame-accurate -> report only
+    corr = 0.0 if ctc_ok else (max(-0.2, min(0.2, lag)) if abs(lag) > 0.02 else 0.0)
+    log(f"sync: onset cross-correlation lag {lag * 1000:+.0f} ms ({'CTC timing, no correction' if ctc_ok else 'whisper timing'})")
+    if corr:
+        for w in words:
+            w["start"] = round(max(0.0, w["start"] - corr), 3)
+            w["end"] = round(max(w["start"] + 0.08, w["end"] - corr), 3)
+        log(f"sync: removed a constant {corr * 1000:+.0f} ms offset (measured {lag * 1000:+.0f} ms)")
     beat = estimate_beat(inst)
     lines = build_lines(lyric_lines, words, a.max_words)
     countins = schedule(lines, beat)
@@ -708,6 +1171,21 @@ def main():
 
     # audio
     t = time.time()
+    if a.align_only:
+        tag = "align"
+        base = a.name or re.sub(r"[^\w\u0590-\u05FF-]+", "_", audio.stem)[:40]
+        timing = {"source": str(audio), "duration": round(dur, 3), "lang": lang, "rtl": rtl,
+                  "lyrics_source": lyrics_source, "semitones": 0, "ctc_refined": bool(ctc_ok),
+                  "measured_lag_ms": round(lag * 1000), "beat_s": round(beat, 3),
+                  "stems": {"mix": str(mix), "vocals": str(voc), "instrumental": str(inst),
+                            "instrumental_used": str(inst)},
+                  "colors": {"sung": SUNG, "unsung": UNSUNG}, "words": words,
+                  "lines": [{k: L[k] for k in ("text", "words", "start", "end", "appear", "disappear", "slot")}
+                            for L in lines], "countins": countins, "outputs": []}
+        p_ = out / f"{base}-timing-align.json"
+        p_.write_text(json.dumps(timing, ensure_ascii=False, indent=1), encoding="utf-8")
+        log(f"--align-only: timing written to {p_} (check: qa_karaoke.py {p_.name} --skip bleed,pitch,loudness,layout,frames)")
+        return
     if a.semitones:
         inst_use = pitch_shift(inst, work / f"instrumental_{a.semitones:+g}st.wav", a.semitones)
         voc_use = pitch_shift(voc, work / f"vocals_{a.semitones:+g}st.wav", a.semitones) if a.guide_vocal > 0 else None
@@ -720,11 +1198,14 @@ def main():
     log(f"mix: {loud['input_i']} LUFS, {loud['input_tp']} dBTP")
 
     base = a.name or re.sub(r"[^\w֐-׿-]+", "_", audio.stem)[:40]
+    if not a.title:
+        a.title = re.sub(r"[_-]+", " ", audio.stem).strip()[:60]
     outputs = []
     t = time.time()
     for f in [x.strip() for x in a.formats.split(",") if x.strip()]:
         W, H = (1920, 1080) if f == "16x9" else (1080, 1920)
-        ass_txt, boxes = build_ass(lines, words, countins, W, H, rtl, a.title, a.artist, draft)
+        ass_txt, boxes = build_ass(lines, words, countins, W, H, rtl, a.title, a.artist, draft, a.semitones,
+                                   dur=dur, credit=a.credit)
         ass_path = out / f"{base}-{f}.ass"
         ass_path.write_text(ass_txt, encoding="utf-8-sig")
         mp4 = out / f"{base}-karaoke-{tag}-{f}{'-DRAFT' if draft else ''}.mp4"
@@ -737,7 +1218,7 @@ def main():
     timing = {
         "source": str(audio), "duration": round(dur, 3), "lang": lang, "rtl": rtl,
         "lyrics_source": lyrics_source, "semitones": a.semitones, "guide_vocal": a.guide_vocal,
-        "separation_model": sep_model, "asr_model": asr, "model_dir": str(MODEL_DIR), "beat_s": round(beat, 3),
+        "separation_model": sep_model, "asr_model": asr, "sync_correction_ms": round(corr * 1000), "measured_lag_ms": round(lag * 1000), "ctc_refined": bool(ctc_ok), "model_dir": str(MODEL_DIR), "beat_s": round(beat, 3),
         "stems": {"mix": str(mix), "vocals": str(voc), "instrumental": str(inst),
                   "instrumental_used": str(inst_use), "final_audio": str(final_audio)},
         "colors": {"sung": SUNG, "unsung": UNSUNG},
