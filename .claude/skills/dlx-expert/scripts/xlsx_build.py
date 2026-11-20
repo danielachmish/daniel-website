@@ -21,6 +21,7 @@ Formula tokens (inside "formula" / "first" strings):
 
 Then ALWAYS: python3 qa_xlsx.py <out.xlsx>  (recalculates headless in LibreOffice and checks).
 """
+import datetime
 import json
 import re
 import sys
@@ -62,6 +63,8 @@ FORMATS = {
     "pct": '0.0%',
     "text": '@',
     "bool": 'General',
+    "month": '[$-40D]mmm yy',
+    "date": 'dd/mm/yyyy',
 }
 LABEL_COL, UNIT_COL, TOTAL_COL, FIRST_PERIOD_COL = 1, 2, 3, 4
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -79,8 +82,18 @@ def qs(sheet):
 class Builder:
     def __init__(self, spec):
         self.spec = spec
-        self.periods = spec.get("periods") or die("periods: list of period labels is required")
-        self.n = len(self.periods)
+        # periods: either real months from a "start" date input (preferred: next year = change one cell), or fixed labels
+        self.start = spec.get("start")
+        if self.start:
+            self.n = int(spec.get("months", 12))
+            self.periods = [None] * self.n
+            spec.setdefault("inputs", []).insert(0, {"name": "StartMonth", "label": "החודש הראשון במודל",
+                "value": datetime.date.fromisoformat(self.start), "unit": "תאריך", "format": "date",
+                "note": "משנים לשנה הבאה, ומעדכנים ימי עבודה ועונתיות"})
+            spec["inputs"].insert(0, {"section": "תקופה"})
+        else:
+            self.periods = spec.get("periods") or die("periods: give \"start\" (YYYY-MM-01) or a list of period labels")
+            self.n = len(self.periods)
         names = {"outputs": "תוצאות", "inputs": "הנחות", "calcs": "חישובים", "checks": "בדיקות", "howto": "איך משתמשים"}
         names.update(spec.get("sheets", {}))
         self.sn = names
@@ -131,6 +144,17 @@ class Builder:
                 mod = mod[1:]
             return self.ref(name, sheet, j, mod)
 
+        def span(m):   # {FirstRow..LastRow}: the same period column across a block of rows (subtotal with SUM)
+            a, b = m.group(1), m.group(2)
+            for x in (a, b):
+                if x not in self.rows:
+                    die(f"unknown row {x} in {{{a}..{b}}}")
+            (sa, ra, _), (sb, rb, _) = self.rows[a], self.rows[b]
+            if sa != sb or sa != sheet or j is None:
+                die(f"{{{a}..{b}}} must be rows on this sheet, used inside the timeline")
+            return f"{self.pcol(j)}{ra}:{self.pcol(j)}{rb}"
+
+        formula = re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)\.\.([A-Za-z_][A-Za-z0-9_]*)\}", span, formula)
         out = re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)(\[-?\d+\])?(:[a-z]+)?\}", sub, formula)
         if "{" in out:
             die(f"untranslated token in {formula}")
@@ -170,9 +194,17 @@ class Builder:
     def header(self, ws, r, total_label="שנה (סה\"כ או סוף שנה)"):
         labels = ["", "יחידה", total_label] + list(self.periods)
         for i, t in enumerate(labels):
+            if i >= 3 and self.start:
+                j = i - 3
+                if ws.title == self.sn["calcs"]:
+                    t = "=StartMonth" if j == 0 else f"=EDATE({self.pcol(j - 1)}{r},1)"
+                else:
+                    t = f"={qs(self.sn['calcs'])}!{self.pcol(j)}$2"
             c = ws.cell(row=r, column=i + 1, value=t)
             c.fill, c.font = HEAD_FILL, HEAD_FONT
             c.alignment = Alignment(horizontal="center", vertical="center")
+            if i >= 3 and self.start:
+                c.number_format = FORMATS["month"]
         ws.row_dimensions[r].height = 20
 
     def section(self, ws, r, text, width):
@@ -231,8 +263,8 @@ class Builder:
             ws.cell(row=r, column=LABEL_COL, value=item["label"]).font = CALC_FONT
             ws.cell(row=r, column=UNIT_COL, value=item.get("unit", "")).font = SUB_FONT
             fmt = item.get("format", "num")
-            if "series" in item:
-                vals = item["series"]
+            if "series" in item or item.get("blank_series"):
+                vals = item["series"] if "series" in item and item["series"] is not None else [None] * self.n
                 if len(vals) != self.n:
                     die(f"{item['name']}: series has {len(vals)} values, periods has {self.n}")
                 cells = []
@@ -301,11 +333,20 @@ class Builder:
         self.section(ws, r, "השורה התחתונה", 3)
         r += 1
         for k in out.get("kpis", []):
+            if "section" in k:
+                r += 1
+                self.section(ws, r, k["section"], 3)
+                r += 1
+                continue
             ws.cell(row=r, column=1, value=k["label"]).font = Font(name=FONT, size=12)
             c = ws.cell(row=r, column=TOTAL_COL, value=self.tr(k["formula"], ws.title))
             c.font = KPI_FONT
             c.number_format = FORMATS.get(k.get("format", "money"), k.get("format"))
             c.alignment = Alignment(horizontal="center")
+            if k.get("format") == "text":   # a sentence: give it the whole row width, aligned to the reading start
+                ws.merge_cells(start_row=r, start_column=TOTAL_COL, end_row=r, end_column=FIRST_PERIOD_COL + self.n - 1)
+                c.font = Font(name=FONT, bold=True, size=12, color="1F3864")
+                c.alignment = Alignment(horizontal="right", readingOrder=2)
             if k.get("note"):
                 ws.cell(row=r, column=FIRST_PERIOD_COL, value=k["note"]).font = NOTE_FONT
             ws.row_dimensions[r].height = 24
@@ -328,9 +369,13 @@ class Builder:
             r += 1
             first_row = r
             for t in table:
-                item = {"label": t["label"], "unit": t.get("unit", "₪"), "formula": "={" + t["ref"] + "}",
+                if "section" in t:
+                    self.section(ws, r, t["section"], FIRST_PERIOD_COL + self.n - 1)
+                    r += 1
+                    continue
+                item = {"label": t["label"], "unit": t.get("unit", "₪"), "formula": t.get("formula") or "={" + t["ref"] + "}",
                         "format": t.get("format", "money"), "total": t.get("total", "sum"), "bold": t.get("bold")}
-                self.register("Out_" + t["ref"], ws.title, r, "series")
+                self.register(t.get("name") or "Out_" + t["ref"], ws.title, r, "series")
                 self.fill_row(ws, item, r)
                 for j in range(-2, self.n):
                     ws.cell(row=r, column=FIRST_PERIOD_COL + j).font = LINK_FONT if not t.get("bold") else Font(name=FONT, bold=True, color="006100")
@@ -338,12 +383,11 @@ class Builder:
             last_row = r - 1
             ch = out.get("chart")
             if ch:
-                rows = [first_row + [t["ref"] for t in table].index(x) for x in ch["rows"]]
+                rows = [self.rows["Out_" + x][1] for x in ch["rows"]]
                 chart = LineChart() if ch.get("type", "line") == "line" else BarChart()
                 chart.title = ch["title"]
                 chart.height, chart.width = 8, 26
                 chart.y_axis.numFmt = '₪#,##0'
-                chart.y_axis.title = ch.get("y_title", "₪")
                 for rr in rows:
                     data = Reference(ws, min_col=FIRST_PERIOD_COL - 3, max_col=FIRST_PERIOD_COL + self.n - 1, min_row=rr, max_row=rr)
                     chart.add_data(data, from_rows=True, titles_from_data=True)
@@ -354,6 +398,12 @@ class Builder:
                     s.smooth = False
                 cats = Reference(ws, min_col=FIRST_PERIOD_COL, max_col=FIRST_PERIOD_COL + self.n - 1, min_row=hdr, max_row=hdr)
                 chart.set_categories(cats)
+                chart.x_axis.scaling.orientation = "maxMin"   # right-to-left, like the table above it
+                chart.x_axis.tickLblPos = "low"               # month labels under the plot, even when values go negative
+                chart.x_axis.number_format = FORMATS["month"] if self.start else "General"
+                chart.x_axis.delete = False
+                chart.y_axis.delete = False
+                chart.legend.position = "b"
                 ws.add_chart(chart, f"A{last_row + 3}")
         ws.freeze_panes = None
         self.ws_out = ws
@@ -381,8 +431,9 @@ class Builder:
         c.font = TOTAL_FONT
         self.wb.defined_names["QA_AllChecks"] = DefinedName("QA_AllChecks", attr_text=f"{qs(ws.title)}!$C${r}")
         green, red = PatternFill("solid", fgColor="C6EFCE"), PatternFill("solid", fgColor="FFC7CE")
-        ws.conditional_formatting.add(f"C{first}:C{r}", FormulaRule(formula=[f"C{first}=TRUE"], fill=green))
-        ws.conditional_formatting.add(f"C{first}:C{r}", FormulaRule(formula=[f"C{first}=FALSE"], fill=red))
+        for rng, top in ((f"C{first}:C{last}", first), (f"C{r}", r)):   # not the blank row between them
+            ws.conditional_formatting.add(rng, FormulaRule(formula=[f"C{top}=TRUE"], fill=green))
+            ws.conditional_formatting.add(rng, FormulaRule(formula=[f'AND(C{top}<>"",C{top}=FALSE)'], fill=red))
 
     def build_howto(self):
         ws = self.sheet("howto", with_timeline=False)
@@ -394,6 +445,15 @@ class Builder:
             c.font = Font(name=FONT, size=12)
             c.alignment = Alignment(wrap_text=True, vertical="top")
             r += 1
+
+    def rtl_text(self):
+        """readingOrder=RTL on every text cell, so mixed Hebrew/English/numbers render in the right order (PDF, Excel)."""
+        for ws in self.wb.worksheets:
+            for row in ws.iter_rows():
+                for c in row:
+                    if isinstance(c.value, str):
+                        a = c.alignment
+                        c.alignment = Alignment(horizontal=a.horizontal, vertical=a.vertical, wrap_text=a.wrap_text, readingOrder=2)
 
     def protect(self):
         for ws in self.wb.worksheets:
@@ -408,6 +468,7 @@ class Builder:
         self.build_outputs()       # uses the name QA_AllChecks, defined by build_checks
         self.build_checks()
         self.build_howto()
+        self.rtl_text()
         self.protect()
         order = [self.sn[k] for k in ("outputs", "inputs", "calcs", "checks", "howto")]
         self.wb._sheets.sort(key=lambda w: order.index(w.title))

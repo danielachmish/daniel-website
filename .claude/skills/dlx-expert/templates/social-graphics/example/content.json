@@ -1,0 +1,27 @@
+{"out": "out", "creatives": [
+ {"id": "hero-4x5", "layout": "product-hero", "format": "feed-4x5", "data": {
+   "eyebrow": "שם קו המוצרים", "headline": ["הבטחה אחת.", "*בשתי שורות.*"], "product": "assets/product1_cut.png",
+   "specs": [{"value": "65W", "label": "מה זה אומר"}, {"value": "PD", "label": "עוד נתון מהאריזה"}],
+   "cta": "להזמנה באתר ←", "footer": "example.co.il"}},
+ {"id": "story-9x16", "layout": "story", "format": "story-9x16", "data": {
+   "eyebrow": "שם קו המוצרים", "headline": ["כותרת קצרה", "*שעוצרת גלילה.*"],
+   "products": ["assets/product2_cut.png", "assets/product1_cut.png", "assets/product3_cut.png"], "cta": "להזמנה באתר ←", "footer": "example.co.il"}},
+ {"id": "promo-4x5", "layout": "promo", "format": "feed-4x5", "data": {
+   "eyebrow": "שם קו המוצרים", "value": "XX%", "pending": true, "valueLabel": "הנחה", "offerLine": "על [מה בדיוק]",
+   "products": ["assets/product2_cut.png", "assets/product1_cut.png", "assets/product3_cut.png"],
+   "deadline": "עד [תאריך]", "legal": "[תנאי המבצע]", "cta": "להזמנה באתר ←"}},
+ {"id": "testimonial-4x5", "layout": "testimonial", "format": "feed-4x5", "data": {
+   "variant": "accent", "eyebrow": "לקוחות מספרים", "quote": "[ציטוט עד 12 מילים]", "name": "[שם הלקוח]", "role": "[עסק, עיר]",
+   "product": "assets/product1_cut.png", "cta": "להזמנה באתר ←"}},
+ {"id": "carousel-4x5", "layout": "carousel", "format": "feed-4x5", "data": {"swipeLabel": "הבא", "slides": [
+   {"kind": "cover", "eyebrow": "שם הקו", "headline": ["כותרת השער", "*שתי שורות.*"], "products": ["assets/product2_cut.png", "assets/product1_cut.png", "assets/product3_cut.png"], "sub": "קטגוריה · קטגוריה · קטגוריה"},
+   {"kind": "range", "eyebrow": "קטגוריה", "title": "כל הדגמים", "items": [{"product": "assets/product1_cut.png", "spec": "20W", "name": ""}, {"product": "assets/product2_cut.png", "spec": "25W", "name": ""}, {"product": "assets/product3_cut.png", "spec": "65W", "name": ""}]},
+   {"kind": "number", "eyebrow": "קטגוריה", "value": "65W", "label": "מה המספר אומר", "product": "assets/product3_cut.png"},
+   {"kind": "cta", "headline": ["[סלוגן מאושר]"], "cta": "להזמנה באתר ←", "contact": ["example.co.il", "[טלפון]"], "products": ["assets/product1_cut.png", "assets/product2_cut.png", "assets/product3_cut.png"]}]}},
+ {"id": "banner-web", "layout": "banner", "format": "banner-web", "data": {
+   "eyebrow": "שם הקו", "headline": ["[סלוגן]", "*[שורה שנייה]*"], "sub": "משפט אחד שמסביר למי זה.",
+   "products": ["assets/product2_cut.png", "assets/product1_cut.png", "assets/product3_cut.png"], "cta": "להזמנה באתר ←", "footer": "example.co.il"}},
+ {"id": "banner-mobile-4x5", "layout": "banner", "format": "feed-4x5", "data": {
+   "eyebrow": "שם הקו", "headline": ["[סלוגן]", "*[שורה שנייה]*"],
+   "products": ["assets/product2_cut.png", "assets/product1_cut.png", "assets/product3_cut.png"], "cta": "להזמנה באתר ←", "footer": "example.co.il"}}
+]}

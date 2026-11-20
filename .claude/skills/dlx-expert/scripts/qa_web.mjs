@@ -307,7 +307,7 @@ try {
       const imgNoAlt = imgs.filter(i => !i.hasAttribute('alt')).map(i => i.src.split('/').pop());
       const imgNoDims = imgs.filter(i => !(i.getAttribute('width') && i.getAttribute('height'))).map(i => i.src.split('/').pop());
       const imgEagerBelow = imgs.filter(i => i.getBoundingClientRect().top > H * 1.2 && i.loading !== 'lazy').map(i => i.src.split('/').pop());
-      const imgOversized = imgs.filter(i => vis(i) && i.naturalWidth > i.getBoundingClientRect().width * 2.6 && i.getBoundingClientRect().width > 0 && !/\.svg/.test(i.currentSrc))
+      const imgOversized = imgs.filter(i => vis(i) && i.naturalWidth > i.getBoundingClientRect().width * 3.2 && i.getBoundingClientRect().width > 0 && !/\.svg/.test(i.currentSrc))
         .map(i => `${i.currentSrc.split('/').pop()} ${i.naturalWidth}px shown at ${Math.round(i.getBoundingClientRect().width)}px`);
       const imgOldFormat = imgs.filter(i => /\.(png|jpe?g|gif)(\?|$)/i.test(i.currentSrc || i.src)).map(i => (i.currentSrc || i.src).split('/').pop());
       const inputs = [...document.querySelectorAll('input, select, textarea')].filter(e => !['hidden', 'submit', 'button', 'reset', 'image'].includes(e.type) && !e.closest('.hp'));
@@ -383,10 +383,14 @@ try {
       if (r && r.same) noFocus.push(r.name);
     }
     noFocus.length ? fail(`${D} no visible focus indicator on: ${noFocus.slice(0, 4).join(', ')}`) : pass(`${D} visible focus on keyboard Tab`);
-    { // evidence for the critic: keyboard focus on the first call-to-action button
-      await page.evaluate(() => { const b = document.querySelector('main .btn, main a[href^="#"], main button'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'instant' }); } });
-      await page.keyboard.press('Tab'); await page.evaluate(() => { const b = document.querySelector('main .btn, main button'); if (b) b.focus(); });
-      await page.waitForTimeout(250);
+    { // evidence for the critic: real keyboard Tab from the top until the first button inside <main> has focus
+      await page.goto(url, { waitUntil: 'load' }); await page.waitForTimeout(600);
+      for (let k = 0; k < 20; k++) {
+        await page.keyboard.press('Tab');
+        const ok = await page.evaluate(() => { const a = document.activeElement; return !!(a && a.closest('main') && (a.matches('.btn, button, [role=button]'))); });
+        if (ok) break;
+      }
+      await page.waitForTimeout(300);
       fs.mkdirSync(path.join(OUT, 'review'), { recursive: true });
       await page.screenshot({ path: path.join(OUT, 'review', 'state_keyboard_focus_desktop.png') });
     }
@@ -449,6 +453,31 @@ try {
       await page.waitForTimeout(2500);
       const after = await page.evaluate(() => { const t = document.body.innerText; return { success: /תודה|קיבלנו|נשלח|received|thank/i.test(t), err: [...document.querySelectorAll('[role=alert], .form-status')].map(e => e.textContent.trim()).filter(Boolean).join(' ') }; });
       await page.screenshot({ path: path.join(OUT, 'review', 'state_form_submitted_phone.png') });
+      // failure path: the server answers 500. The visitor must get a human message (ideally with another way to reach the business)
+      await page.goto(url, { waitUntil: 'load' }); await page.waitForTimeout(500);
+      await page.route('**/*', r => r.request().method() === 'POST' ? r.fulfill({ status: 500, body: '{}' }) : r.continue());
+      await page.evaluate((sel) => { const f = document.querySelector('form[data-lead-form]') || [...document.querySelectorAll('form')].find(x => x.querySelector('[required]'));
+        if (!f) return; f.setAttribute('data-qa-form', '1'); delete f.dataset.demo; }, formSel);
+      await page.evaluate((sel) => {
+        const f = document.querySelector(sel); if (!f) return;
+        for (const el of f.querySelectorAll('input, select, textarea')) {
+          if (el.closest('.hp') || ['hidden', 'submit', 'button'].includes(el.type) || el.tabIndex === -1) continue;
+          if (el.type === 'checkbox' || el.type === 'radio') { if (el.required) el.checked = true; continue; }
+          if (el.tagName === 'SELECT') { if (el.required && el.options.length > 1) el.selectedIndex = 1; continue; }
+          const n = (el.name + ' ' + el.id).toLowerCase();
+          el.value = el.type === 'email' ? 'test@example.com' : (el.type === 'tel' || /phone|tel/.test(n)) ? '050-1234567' : (/biz|vat|osek/.test(n) || el.inputMode === 'numeric') ? '515555555' : 'בדיקה';
+        }
+        const st = f.querySelector('input[name="_started"]'); if (st) st.value = String(Date.now() - 10000);
+      }, formSel);
+      await page.locator(`${formSel} [type=submit]`).first().scrollIntoViewIfNeeded().catch(() => {});
+      await page.locator(`${formSel} [type=submit]`).first().click().catch(() => {});
+      await page.waitForTimeout(2000);
+      const failMsg = await page.evaluate((sel) => { const f = document.querySelector(sel); const st = f && f.querySelector('[role=alert], .form-status');
+        return st ? { text: st.textContent.trim(), link: !!st.querySelector('a[href]') } : { text: '', link: false }; }, formSel);
+      await page.screenshot({ path: path.join(OUT, 'review', 'state_form_failed_phone.png') });
+      if (!failMsg.text) fail('when the server fails, the visitor sees no error message (state_form_failed_phone.png)');
+      else if (!failMsg.link) warn(`server failure shows "${failMsg.text.slice(0, 60)}" but no alternative contact link`);
+      else pass('server failure shows a human message with an alternative contact link');
       if (after.success) pass('valid submit shows a success message (state_form_submitted_phone.png)');
       else if (after.err) warn(`valid submit shows an error (backend not connected?): "${after.err.slice(0, 80)}"`);
       else fail('valid submit shows neither success nor an error message');

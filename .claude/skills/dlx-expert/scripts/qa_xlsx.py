@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qa_xlsx.py <workbook.xlsx> [out_dir] [--allow 0,1] [--data-sheets "גיליון נתונים,Data"] [--target excel2019] [--no-render]
+"""qa_xlsx.py <workbook.xlsx> [out_dir] [--allow 0,1] [--data-sheets "גיליון נתונים,Data"] [--target excel2019] [--mutate 8] [--no-render]
 
 Mandatory spreadsheet QA before delivery. Recalculates a COPY headless in LibreOffice (the client's file is
 never touched), then checks the computed values, not just the formulas:
@@ -13,7 +13,10 @@ never touched), then checks the computed values, not just the formulas:
   FAIL  a typed number outside the inputs that is not styled as an input (a hidden hard-code), or a formula
         cell styled like an input, or two different input styles
   FAIL  a Hebrew sheet that is not right-to-left
-  WARN  protected sheet with locked input cells / unprotected sheet with formulas; input without data validation
+  FAIL  a formula that breaks its row's pattern (FAST: one formula per row; only the first period may differ)
+  FAIL  a constant hidden in a named range; input without data validation; locked input; unprotected formula sheet
+  FAIL  mutation test: a calculated number typed over and NONE of the model checks notices (--mutate N, default 8)
+  WARN  IFERROR/IFNA that can hide errors; some mutations not noticed by the checks
   WARN  formulas that point at empty cells; volatile OFFSET/INDIRECT; functions missing in --target Excel version
 
 Writes <out_dir>/recalculated.xlsx and qa_xlsx_report.txt, and (unless --no-render) a PDF + PNG of every page
@@ -30,7 +33,8 @@ from pathlib import Path
 
 try:
     import openpyxl
-    from openpyxl.utils import get_column_letter, range_boundaries
+    from openpyxl.formula import Tokenizer
+    from openpyxl.utils import column_index_from_string, get_column_letter, range_boundaries
 except ImportError:
     sys.exit("openpyxl missing: pip install openpyxl")
 
@@ -58,7 +62,7 @@ def args():
     a = sys.argv[1:]
     if not a or a[0] in ("-h", "--help"):
         sys.exit(__doc__)
-    opts = {"allow": {0.0, 1.0}, "data": set(), "target": None, "render": True}
+    opts = {"allow": {0.0, 1.0}, "data": set(), "target": None, "render": True, "mutate": 8}
     pos = []
     i = 0
     while i < len(a):
@@ -68,6 +72,8 @@ def args():
             opts["data"] = {x.strip() for x in a[i + 1].split(",")}; i += 2
         elif a[i] == "--target":
             opts["target"] = a[i + 1].lower(); i += 2
+        elif a[i] == "--mutate":
+            opts["mutate"] = int(a[i + 1]); i += 2
         elif a[i] == "--no-render":
             opts["render"] = False; i += 1
         else:
@@ -77,28 +83,90 @@ def args():
     return src, out, opts
 
 
-def recalc(src, out):
-    """Recalculate a copy in LibreOffice with a throwaway profile and a calculateAll() macro."""
-    if not shutil.which("soffice"):
-        return None, "LibreOffice (soffice) not installed: values were NOT recalculated"
+class LO:
+    """One throwaway LibreOffice profile with a calculateAll()+store() macro, reused for every recalculation."""
+    def __init__(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="qa_xlsx_lo_")
+        self.url = Path(self.tmp.name).as_uri()
+        subprocess.run(["soffice", "--headless", "--terminate_after_init", f"-env:UserInstallation={self.url}"],
+                       capture_output=True, timeout=120)
+        mdir = Path(self.tmp.name) / "user" / "basic" / "Standard"
+        self.ok = mdir.exists()
+        if self.ok:
+            (mdir / "Module1.xba").write_text(MACRO)
+
+    def recalc(self, path):
+        before = path.stat().st_mtime_ns
+        r = subprocess.run(["timeout", "180", "soffice", "--headless", "--norestore", f"-env:UserInstallation={self.url}",
+                            "vnd.sun.star.script:Standard.Module1.RecalcSave?language=Basic&location=application", str(path)],
+                           capture_output=True, text=True)
+        return path.stat().st_mtime_ns != before, r
+
+
+def recalc(src, out, lo):
+    """Recalculate a COPY of the workbook (the client's file is never touched)."""
+    if lo is None or not lo.ok:
+        return None, "LibreOffice (soffice) missing or profile not created: values were NOT recalculated"
     out.mkdir(parents=True, exist_ok=True)
     dst = out / "recalculated.xlsx"
     shutil.copyfile(src, dst)
-    with tempfile.TemporaryDirectory(prefix="qa_xlsx_lo_") as prof:
-        url = Path(prof).as_uri()
-        subprocess.run(["soffice", "--headless", "--terminate_after_init", f"-env:UserInstallation={url}"],
-                       capture_output=True, timeout=120)
-        mdir = Path(prof) / "user" / "basic" / "Standard"
-        if not mdir.exists():
-            return None, "LibreOffice profile not created: values were NOT recalculated"
-        (mdir / "Module1.xba").write_text(MACRO)
-        before = dst.stat().st_mtime_ns
-        r = subprocess.run(["timeout", "180", "soffice", "--headless", "--norestore", f"-env:UserInstallation={url}",
-                            "vnd.sun.star.script:Standard.Module1.RecalcSave?language=Basic&location=application", str(dst)],
-                           capture_output=True, text=True)
-        if dst.stat().st_mtime_ns == before:
-            return None, f"LibreOffice did not save the recalculated copy (rc={r.returncode} {r.stderr.strip()[:200]})"
+    saved, r = lo.recalc(dst)
+    if not saved:
+        return None, f"LibreOffice did not save the recalculated copy (rc={r.returncode} {r.stderr.strip()[:200]})"
     return dst, None
+
+
+A1 = re.compile(r"^(\$?)([A-Za-z]{1,3})(\$?)(\d+)$")
+
+
+def r1c1(formula, row, col):
+    """Formula with every A1 reference rewritten relative to (row, col): the FAST 'one formula per row' fingerprint."""
+    try:
+        toks = Tokenizer(formula).items
+    except Exception:
+        return formula
+    out = []
+    for t in toks:
+        if t.type == "OPERAND" and t.subtype == "RANGE":
+            v = t.value
+            sheet = ""
+            if "!" in v:
+                sheet, v = v.rsplit("!", 1)
+                sheet += "!"
+            parts = []
+            for ref in v.split(":"):
+                m = A1.match(ref)
+                if not m:
+                    parts.append(ref)
+                    continue
+                c = column_index_from_string(m.group(2).upper())
+                r = int(m.group(4))
+                rs = f"R{r}" if m.group(3) else f"R[{r - row}]"
+                cs = f"C{c}" if m.group(1) else f"C[{c - col}]"
+                parts.append(rs + cs)
+            out.append(sheet + ":".join(parts))
+        else:
+            out.append(t.value)
+    return "".join(out)
+
+
+def same_row_refs(formula, row):
+    """(n_cells, n_refs) of references that point into the formula's own row on the same sheet."""
+    cells, refs = 0, 0
+    try:
+        toks = Tokenizer(formula).items
+    except Exception:
+        return 0, 0
+    for t in toks:
+        if t.type == "OPERAND" and t.subtype == "RANGE" and "!" not in t.value:
+            ends = [A1.match(x) for x in t.value.split(":")]
+            if ends and all(ends):
+                rows = [int(e.group(4)) for e in ends]
+                if all(r == row for r in rows):
+                    refs += 1
+                    cs = [column_index_from_string(e.group(2).upper()) for e in ends]
+                    cells += abs(cs[-1] - cs[0]) + 1
+    return cells, refs
 
 
 def strip_formula(f):
@@ -112,12 +180,18 @@ def strip_formula(f):
 
 
 def literals(f):
-    s = strip_formula(f)
-    return [m.group(0) for m in re.finditer(r"(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?%?", s)]
+    try:
+        return [t.value for t in Tokenizer(f).items if t.type == "OPERAND" and t.subtype == "NUMBER"]
+    except Exception:
+        s2 = strip_formula(f)
+        return [m.group(0) for m in re.finditer(r"(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?%?", s2)]
 
 
 def num(x):
-    return float(x[:-1]) / 100 if x.endswith("%") else float(x)
+    try:
+        return float(x[:-1]) / 100 if x.endswith("%") else float(x)
+    except ValueError:
+        return float("nan")
 
 
 def style_sig(c):
@@ -129,7 +203,7 @@ def style_sig(c):
 def refs_in(f, here):
     """Yield (sheet, coord) for simple single-cell refs (ranges are skipped)."""
     s = re.sub(r'"[^"]*"', '""', f)
-    for m in re.finditer(r"(?:'((?:[^']|'')+)'|([A-Za-z_][\w.]*))?!?(\$?[A-Z]{1,3}\$?\d+)(?![\d:(])", s):
+    for m in re.finditer(r"(?<![\d.])(?:'((?:[^']|'')+)'|([A-Za-z_][\w.]*))?!?(\$?[A-Z]{1,3}\$?\d+)(?![\d:(])", s):
         full = m.group(0)
         if ":" in s[max(0, m.start() - 1):m.start()]:
             continue
@@ -146,7 +220,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     print(f"QA {src}")
     wf = openpyxl.load_workbook(src)                       # formulas
-    rc, err = recalc(src, out)
+    lo = LO() if shutil.which("soffice") else None
+    rc, err = recalc(src, out, lo)
     if err:
         F(err)
         wv = None
@@ -165,6 +240,8 @@ def main():
     formula_sigs = {}
     sum_mismatch = []
     sum_checked = 0
+    iferr = []
+    rowmap = {}           # (sheet,row) -> [(col, r1c1, formula, coord)]
 
     for ws in wf.worksheets:
         vs = wv[ws.title] if wv else None
@@ -181,6 +258,9 @@ def main():
                     if bad:
                         hard.append(f"{ws.title}!{c.coordinate} {f[:80]}  <- {', '.join(sorted(set(bad)))}")
                     up = f.upper()
+                    if re.search(r"\bIFERROR\(|\bIFNA\(", up):
+                        iferr.append(f"{ws.title}!{c.coordinate}")
+                    rowmap.setdefault((ws.title, c.row), []).append((c.column, r1c1(f, c.row, c.column), f, c.coordinate))
                     if re.search(r"\b(OFFSET|INDIRECT)\(", up):
                         volatile.append(f"{ws.title}!{c.coordinate}")
                     if opts["target"] in ("excel2019", "excel2016", "excel2013"):
@@ -190,11 +270,11 @@ def main():
                     formula_sigs.setdefault(style_sig(c), []).append(f"{ws.title}!{c.coordinate}")
                     for sh, coord in refs_in(f, ws.title):
                         if sh in wf.sheetnames:
-                            if wf[sh][coord].value is None:
+                            if wf[sh][coord].value is None and wf[sh][coord].protection.locked:   # blank unlocked = input to fill
                                 dangling.append(f"{ws.title}!{c.coordinate} -> {sh}!{coord}")
                     if vs is not None:
                         cv = vs[c.coordinate].value
-                        if cv is None:
+                        if cv is None and '""' not in f:   # a formula that may legitimately return "" (blank)
                             empty_val.append(f"{ws.title}!{c.coordinate}")
                         elif isinstance(cv, str) and cv.startswith(ERRORS):
                             errs.append(f"{ws.title}!{c.coordinate}={cv}  ({f[:70]})")
@@ -237,6 +317,48 @@ def main():
         F(f"{len(empty_val)} formula(s) with no computed value: {', '.join(empty_val[:8])}")
     (F(f"{len(hard)} formula(s) with hard-coded numbers (move each to a labelled input): " + " | ".join(hard[:8]))
      if hard else P(f"no hard-coded numbers inside formulas (allowed literals: {sorted(opts['allow'])})"))
+    # FAST: one formula across each row. Row totals (aggregate of the own row, or a far link to its end) are set
+    # aside; in every run of >=3 adjacent formulas, all cells after the first must share one R1C1 pattern.
+    incons, runs_checked = [], 0
+    for (sh, row), cells in rowmap.items():
+        body = []
+        for col, pat, f, coord in sorted(cells):
+            n_cells, n_refs = same_row_refs(f, row)
+            if n_cells >= 3:
+                continue   # a row total (SUM/AVERAGE/MIN/MAX of its own row)
+            body.append((col, pat, f, coord))
+        # an edge cell that only links INTO its own row (total column "=D12" or "=O12") is a total, not a period;
+        # a middle cell that copies its neighbour (the "=M6" in November) stays in and breaks the pattern
+        def inward_link(item, others):
+            m = re.fullmatch(r"=\$?([A-Z]{1,3})\$?(\d+)", item[2].replace(" ", "").upper())
+            if not m or int(m.group(2)) != row or not others:
+                return False
+            tgt = column_index_from_string(m.group(1))
+            cols = [o[0] for o in others]
+            left = item[0] < min(cols) and tgt >= min(cols)
+            right = item[0] > max(cols) and tgt <= max(cols) and item[0] - tgt >= 2   # "=N6" in the last period is a copy, not a total
+            return left or right
+        while len(body) >= 2 and inward_link(body[0], body[1:]):
+            body = body[1:]
+        while len(body) >= 2 and inward_link(body[-1], body[:-1]):
+            body = body[:-1]
+        run = []
+        for item in body + [(None, None, None, None)]:
+            if run and (item[0] is None or item[0] != run[-1][0] + 1):
+                if len(run) >= 3:
+                    runs_checked += 1
+                    rest = [x[1] for x in run[1:]]
+                    common = max(set(rest), key=rest.count)
+                    for x in run[1:]:
+                        if x[1] != common:
+                            incons.append(f"{sh}!{x[3]} {x[2][:60]} (row pattern: like {run[2][3] if run[2][1] == common else run[1][3]})")
+                run = []
+            if item[0] is not None:
+                run.append(item)
+    (F(f"{len(incons)} formula(s) break their row's pattern (copied wrong / overwritten): " + " | ".join(incons[:6]))
+     if incons else P(f"{runs_checked} formula rows consistent across periods (one formula per row)"))
+    if iferr:
+        W(f"IFERROR/IFNA in {len(iferr)} cell(s) can hide real errors: {', '.join(iferr[:6])}")
     if wv:
         (F(f"{len(sum_mismatch)} SUM total(s) do not match their cells: " + " | ".join(sum_mismatch[:5]))
          if sum_mismatch else P(f"{sum_checked} SUM totals cross-checked against the cells they cover"))
@@ -255,6 +377,10 @@ def main():
               and not re.search(rf"(?<![\w.]){re.escape(n)}(?![\w.(])", all_f)]
     if unused:
         W(f"{len(unused)} named input(s)/row(s) never used by any formula (dead assumption or a formula that forgot it): {', '.join(unused[:10])}")
+    const_names = [f"{n}={d.attr_text}" for n, d in names.items()
+                   if re.fullmatch(r"=?\s*-?[\d.]+(?:[eE][+-]?\d+)?%?\s*", str(d.attr_text or ""))]
+    (F(f"named constant(s) hidden in Name Manager (an input nobody sees): {', '.join(const_names[:8])}") if const_names
+     else P("no constants hidden in named ranges"))
     broken = [n for n, d in names.items() if "#REF" in (d.attr_text or "")]
     (F(f"broken named ranges: {', '.join(broken)}") if broken else P(f"{len(names)} named ranges, none broken"))
     check_cells = []
@@ -281,6 +407,47 @@ def main():
                 label = wf[sh].cell(row=r, column=1).value
                 bad.append(f"{sh}!{get_column_letter(cc)}{r}={val} ({label})")
         (F(f"{len(bad)} model check(s) not TRUE: " + " | ".join(bad[:6])) if bad else P(f"all {len(check_cells)} model checks TRUE"))
+
+    # ---- mutation test: do the model's own checks notice a corrupted number? ----
+    # (a typed-over formula is the most common real spreadsheet error; identity-only checks never notice it)
+    if check_cells and wv and lo and opts["mutate"] > 0:
+        check_sheets = {sh for sh, _, _ in check_cells}
+        cand = [(sh, row, cells) for (sh, row), cells in rowmap.items() if sh not in check_sheets and len(cells) >= 3]
+        cand.sort(key=lambda t: (wf.sheetnames.index(t[0]), t[1]))
+        k = min(opts["mutate"], len(cand))
+        picks = [cand[round(i * (len(cand) - 1) / max(1, k - 1))] for i in range(k)] if k else []
+        caught, missed = 0, []
+        mdir = out / "mutations"
+        mdir.mkdir(exist_ok=True)
+        for i, (sh, row, cells) in enumerate(picks):
+            col, _, _, coord = sorted(cells)[len(cells) // 2]
+            v = wv[sh][coord].value
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            wm = openpyxl.load_workbook(src)
+            wm[sh][coord].value = v * 1.1 + 1 if v else 1000
+            mp = mdir / f"mut_{i}.xlsx"
+            wm.save(mp)
+            saved, _ = lo.recalc(mp)
+            if not saved:
+                continue
+            wmv = openpyxl.load_workbook(mp, data_only=True)
+            hit = any(wmv[csh].cell(row=r, column=cc).value is not True for csh, r, cc in check_cells)
+            label = wf[sh].cell(row=row, column=1).value or ""
+            if hit:
+                caught += 1
+            else:
+                missed.append(f"{sh}!{coord} ({label})")
+        n = caught + len(missed)
+        if n:
+            if caught == 0:
+                F(f"mutation test: typed over {n} calculated numbers and the model's checks stayed TRUE every time "
+                  "(they are identities that cannot fail). Add independent re-computations and sanity limits")
+            elif missed:
+                W(f"mutation test: checks caught {caught}/{n} corrupted numbers; NOT noticed: " + " | ".join(missed[:8]))
+            else:
+                P(f"mutation test: the model's checks caught all {n} corrupted numbers")
+        shutil.rmtree(mdir, ignore_errors=True)
 
     # ---- inputs styled distinctly ----
     if const_cells:
@@ -312,16 +479,16 @@ def main():
                         for cc in range(c1, c2 + 1):
                             dv_cells[(ws.title, r, cc)] = True
         novalid = [f"{s}!{c}" for s, c, _, cell in main_cells if (s, cell.row, cell.column) not in dv_cells]
-        (W(f"{len(novalid)} input cell(s) without data validation: {', '.join(novalid[:8])}") if novalid
+        (F(f"{len(novalid)} input cell(s) without data validation: {', '.join(novalid[:8])}") if novalid
          else P("every input cell has data validation"))
         locked_inputs = [f"{s}!{c}" for s, c, _, cell in main_cells if wf[s].protection.sheet and cell.protection.locked]
-        (W(f"{len(locked_inputs)} input cell(s) locked on a protected sheet (client cannot type): {', '.join(locked_inputs[:8])}")
+        (F(f"{len(locked_inputs)} input cell(s) locked on a protected sheet (client cannot type): {', '.join(locked_inputs[:8])}")
          if locked_inputs else P("input cells are unlocked"))
     else:
         W("no typed numbers found: is there an inputs area at all?")
     unprot = [ws.title for ws in wf.worksheets if not ws.protection.sheet and any(
         isinstance(c.value, str) and c.value.startswith("=") for r in ws.iter_rows() for c in r)]
-    (W(f"sheets with formulas but no protection (formulas can be overwritten): {', '.join(unprot)}") if unprot
+    (F(f"sheets with formulas but no protection (formulas can be overwritten): {', '.join(unprot)}") if unprot
      else P("every sheet with formulas is protected"))
     if dangling:
         W(f"{len(dangling)} formula reference(s) to EMPTY cells (often a wrong row/column): " + " | ".join(dangling[:6]))

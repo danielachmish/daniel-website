@@ -9,19 +9,30 @@ FILE: .docx or .pptx (the source: QA reads structure, not pixels). Pass --pdf wi
 the script render it with LibreOffice) for page count and font embedding.
 
 Checks (FAIL unless marked WARN):
-  all     template leftovers ({{x}}, TODO, Lorem ipsum, <<x>>); placeholders [לאשר]/[להשלים] (WARN, FAIL with
-          --final = "this is going to the recipient now"); bidi bugs that render wrong (C++ -> ++C, B.Sc. ->
-          .B.Sc, +972 jumping); year ranges mixing hyphen and en dash (reading order flips); AI clichés (WARN)
+  all     template leftovers ({{x}}, TODO, Lorem ipsum, <<x>>); placeholder [לאשר] (WARN, FAIL with --final =
+          "this is going to the recipient now"); the retired marker [להשלים] (FAIL: one marker only);
+          bidi patterns that render wrong (C++ -> ++C, "Stripe. 3", "X%", ranges without LRM, +972);
+          READING ORDER of every rendered line (needs pymupdf): the glyphs are read back right-to-left with
+          Latin/number runs kept LTR, and every line must appear in the source text - catches any bidi bug;
+          strong claims ("הרוב", "מוכח", "כבר משלמים", "פי 3"...) without a source or [לאשר] (FAIL), soft claims
+          ("תוך 5 שניות", "ב-20%") listed (WARN); AI clichés (WARN; CV clichés FAIL).
+          Sources: the builders store spec "sources" [{"claim","source"}] in the file properties.
   docx    Hebrew paragraph without RTL (w:bidi); Hebrew run without complex-script size (WARN); table with Hebrew
           that is not visually RTL (WARN)
   quote   every line qty x unit = line total; subtotal = sum; VAT line = rate x net; total = net + VAT;
           VAT rate = 18% (Israel since 1.1.2025, re-verify yearly); exempt dealer (עוסק פטור) must NOT charge VAT;
           licensed dealer must show VAT; must state validity, what is not included, payment terms
-  cv      pages <= 2 (FAIL), 2 pages = WARN for under ~10 years experience; at least one number in bullets
+  quote   (web project) must cover accessibility (נגישות), privacy (פרטיות), hosting (אחסון) and bug warranty
+          (אחריות)
+  letter  no self-incriminating phrasing ("טעות בתום לב", "לא שמתי לב"...); appeal must state the deadline basis
+          (229); numbered fact paragraphs without an annex reference (WARN)
+  cv      pages <= 2 (FAIL), 2 pages = WARN for under ~10 years experience; at least one number in bullets;
+          text under 10pt (FAIL); bullets that do not open with a verb (WARN); page under 80% full (WARN)
   pptx    every run >= --min-pt (default 24; shapes named footer-* exempt); text overflowing its box (measured
           with the real font metrics); > 45 words on a slide (WARN); missing speaker notes (WARN);
           pitch: > 15 slides FAIL, < 8 WARN
-  pdf     fonts not embedded; fallback fonts (DejaVu/Liberation) instead of the design fonts (WARN)
+  pdf     fonts not embedded; fallback fonts (DejaVu/Liberation) instead of the design fonts (WARN);
+          last page less than 40% full in a multi-page document (FAIL: rebalance, don't leave a half-empty page)
 """
 import argparse
 import glob
@@ -33,11 +44,19 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hebrew_text import HARD_LEFTOVER, HEB, PLACEHOLDER, bidi_problems, has_hebrew  # noqa: E402
+import json  # noqa: E402
+from hebrew_text import (HARD_LEFTOVER, HEB, OLD_MARKER, PLACEHOLDER, bidi_problems, find_claims,  # noqa: E402
+                         has_hebrew)
 
 VAT_RATE = 18  # Israel, from 1.1.2025 (רשות המסים). Verified 11/2026 - re-check every January.
 AI_CLICHES = ["בעולם המשתנה", "חשוב לציין", "לסיכום ניתן לומר", "הנני לפנות", "בעידן של היום", "מהווה פתרון",
               "פתרון מקצה לקצה", "חוויה בלתי נשכחת", "ללא ספק", "יתרה מזאת"]
+CV_CLICHES = ["אוהב/ת לקחת", "אוהבת לקחת", "אוהב לקחת", "יכולת למידה גבוהה", "יחסי אנוש מצוינים", "ראש גדול",
+              "מוטיבציה גבוהה", "תודעת שירות גבוהה", "עבודה בצוות וגם עצמאית", "יכולת עבודה תחת לחץ", "תקתקנית"]
+SELF_INCRIM = ["טעות בתום לב", "לא שמתי לב", "אני מודה", "הודיתי", "חניתי באיסור", "ידעתי שאסור", "רק לכמה דקות",
+               "לא ראיתי שאסור"]
+HEB_VERB = re.compile(r"^(?:[\u05d0-\u05ea]{2,}תי|[\u05d0-\u05ea]{2,}נו|אחראית|אחראי)(?=\s|$)")
+SOURCES = []
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "documents", "fonts")
 
 results = []
@@ -54,23 +73,38 @@ def num(s):
 
 
 # ---------------------------------------------------------------- generic text checks
-def check_text(paras):
+def norm(s):
+    return re.sub(r"[\s\u00a0\u200e\u200f\u202a-\u202e\u2066-\u2069()\[\]{}\"'״׳“”‘’•]", "", s)
+
+
+def check_text(paras, kind=None):
     full = "\n".join(paras)
+    for m in OLD_MARKER.finditer(full):
+        log("FAIL", f"סימון ישן '{m.group(0)}': משתמשים רק ב-[לאשר: ...]")
+    sourced = " ".join(x.get("claim", "") for x in SOURCES)
+    strong, soft = [], []
+    for p in paras:
+        for lvl, snip in find_claims(p):
+            if snip in sourced:
+                continue
+            (strong if lvl == "strong" else soft).append(f"'{snip}' ב: {p.strip()[:50]}")
+    for c in strong:
+        log("FAIL", f"טענה בלי מקור (להוסיף מקור ל-sources או לסמן [לאשר]): {c}")
+    if soft:
+        log("WARN", f"{len(soft)} טענות עם מספר/תוצאה: לוודא שכל אחת מהלקוח או ממקור: " + " | ".join(soft[:5]))
+    if kind == "cv":
+        for c in CV_CLICHES:
+            if c in full:
+                log("FAIL", f"קלישאה בקורות חיים: '{c}'. להחליף בהישג עם מספר")
     for m in HARD_LEFTOVER.finditer(full):
         log("FAIL", f"שארית תבנית: '{m.group(0)}'")
     ph = PLACEHOLDER.findall(full)
     if ph:
         lvl = "FAIL" if ARGS.final else "WARN"
         log(lvl, f"{len(ph)} מקומות לאישור/השלמה (מסומנים בצהוב): " + ", ".join(sorted(set(ph))[:6]))
-    hy, en = 0, 0
     for p in paras:
-        for kind, snip in bidi_problems(p):
-            log("WARN" if kind.startswith("טווח") else "FAIL", f"כיווניות: {kind}: '{snip}'")
-        if has_hebrew(p):
-            hy += len(re.findall(r"(?:19|20)\d\d-(?:19|20)\d\d", p))
-            en += len(re.findall(r"(?:19|20)\d\d‎?[–—]‎?(?:19|20)\d\d", p))
-    if hy and en:
-        log("FAIL", f"טווחי שנים מעורבים: {hy} עם מקף ו-{en} עם קו מפריד. סדר הקריאה מתהפך בין שורות")
+        for k, snip in bidi_problems(p):
+            log("FAIL", f"כיווניות: {k}: '{snip}'")
     for c in AI_CLICHES:
         if c in full:
             log("WARN", f"ביטוי שחוק/AI: '{c}'")
@@ -79,6 +113,9 @@ def check_text(paras):
 # ---------------------------------------------------------------- docx
 def docx_paras(doc):
     out = [p for p in doc.paragraphs]
+    for sec in doc.sections:
+        for hf in (sec.header, sec.footer):
+            out.extend(hf.paragraphs)
     for t in doc.tables:
         for row in t.rows:
             for c in row.cells:
@@ -114,8 +151,47 @@ def check_docx(path):
         if any(has_hebrew(c.text) for row in t.rows for c in row.cells):
             if t._tbl.tblPr.find(qn("w:bidiVisual")) is None:
                 log("WARN", f"טבלה {i + 1} בעברית בלי bidiVisual: העמודה הראשונה תהיה משמאל")
-    check_text(texts)
+    load_sources(doc.core_properties.comments)
     return doc, texts
+
+
+def load_sources(comments):
+    try:
+        SOURCES.extend(json.loads(comments or "{}").get("sources", []))
+    except (ValueError, AttributeError):
+        pass
+
+
+def check_docx_kind(doc, texts, kind):
+    """Type-specific structure checks on the Word source."""
+    from docx.oxml.ns import qn  # noqa: F401
+    full = "\n".join(texts)
+    if kind == "cv":
+        small = [(r.font.size.pt, r.text[:20]) for p in docx_paras(doc) for r in p.runs
+                 if r.text.strip() and r.font.size is not None and r.font.size.pt < 10]
+        for sz, t in small[:5]:
+            log("FAIL", f"טקסט {sz:g}pt בקורות חיים (מינימום 10, גוף 10.5): '{t}'")
+        for t in texts:
+            t2 = t.strip()
+            if t2.startswith("•"):
+                first = t2.lstrip("• \u200f\u200e").split()[0] if t2.lstrip("• ").split() else ""
+                if not HEB_VERB.match(first):
+                    log("WARN", f"שורת הישג שלא נפתחת בפועל ('{first}'): '{t2[:40]}'")
+    if kind == "quote" and re.search(r"אתר|דף נחיתה|אפליקציה|חנות", full):
+        for need, label in (("נגישות", "נגישות (ת\"י 5568 והצהרת נגישות)"), ("פרטיות", "פרטיות (מדיניות והסכמה בטופס)"),
+                            ("אחסון", "מי אחראי על אחסון ותחזוקה"), ("אחריות", "תקופת אחריות לתיקון תקלות")):
+            if need not in full:
+                log("FAIL", f"הצעה לפרויקט ווב בלי שורת {label}: מתמחר או כותב במפורש 'לא כלול'")
+    if kind == "letter":
+        for ph in SELF_INCRIM:
+            if ph in full:
+                log("FAIL", f"ניסוח מפליל במכתב: '{ph}'. כותבים עובדות, לא הודאה")
+        numbered = [t for t in texts if re.match(r"^\s*\d+\.\s", t)]
+        no_annex = [t for t in numbered if "נספח" not in t and re.search(r"\d|צילום|תמונה|אישור", t)]
+        for t in no_annex:
+            log("WARN", f"טענה עובדתית בלי הפניה לנספח: '{t.strip()[:50]}'")
+        if re.search(r"דוח|דו\"ח|קנס", full) and "229" not in full:
+            log("FAIL", "ערעור על דוח בלי שורת מועד ומקור (סעיף 229 לחסד\"פ / המועד שבדוח)")
 
 
 def check_quote(doc, texts):
@@ -229,6 +305,13 @@ class Meter:
         except ImportError:
             pass
 
+    def missing(self, s):
+        """Characters the design font cannot draw: they fall back to another font (wider, different look)."""
+        f = self.fonts.get(False)
+        if not f:
+            return set()
+        return {ch for ch in s if ord(ch) not in f[0] and ord(ch) > 0x20 and not 0x200b <= ord(ch) <= 0x206f}
+
     def width(self, s, size, bold):
         f = self.fonts.get(bold)
         if not f:
@@ -297,6 +380,9 @@ def check_pptx(path, kind):
             wordy.append((si, words))
         if not (sl.has_notes_slide and sl.notes_slide.notes_text_frame.text.strip()):
             nonotes.append(si)
+    miss = sorted({ch for t in texts for ch in meter.missing(t)})
+    if miss:
+        log("FAIL", f"תווים שאין בגופן Heebo (יוצגו בגופן חלופי ויחרגו מהמדידה): {' '.join(miss)}")
     for si, sz, t in small[:12]:
         log("FAIL", f"שקף {si}: טקסט {sz}pt (מינימום {ARGS.min_pt:g}): '{t}'")
     if not small:
@@ -318,7 +404,8 @@ def check_pptx(path, kind):
             log("FAIL", f"מצגת משקיעים של {n} שקפים (מקסימום 15, יעד 10-12)")
         elif n < 8:
             log("WARN", f"רק {n} שקפים: חסרים כנראה חלקים (בעיה, פתרון, שוק, מודל, תנועה, צוות, גיוס)")
-    check_text(texts)
+    load_sources(prs.core_properties.comments)
+    check_text(texts, kind)
 
 
 # ---------------------------------------------------------------- pdf
@@ -329,6 +416,93 @@ def render_pdf(path):
                     "--outdir", out, path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     g = glob.glob(os.path.join(out, "*.pdf"))
     return g[0] if g else None
+
+
+_LTR_TOKEN = re.compile(r"[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?")
+
+
+def reading_order(visual):
+    """Turn a line's glyphs in VISUAL left-to-right order back into Hebrew reading order. Latin/number tokens
+    are read left-to-right; consecutive tokens joined by single spaces form one LTR unit unless a token ends a
+    sentence (. : ; ! ?). Everything else is read right-to-left."""
+    units, pos, cur, last_end = [], 0, None, -1
+    for m in _LTR_TOKEN.finditer(visual):
+        gap = visual[last_end:m.start()] if cur is not None else None
+        if cur is not None and gap == " " and not cur[-1] in ".:;!?":
+            cur += " " + m.group(0)
+        else:
+            if cur is not None:
+                units.append(cur)
+                units.extend(visual[last_end:m.start()])
+            else:
+                units.extend(visual[pos:m.start()])
+            cur = m.group(0)
+        last_end = m.end()
+    if cur is not None:
+        units.append(cur)
+        units.extend(visual[last_end:])
+    else:
+        units.extend(visual)
+    return "".join(reversed(units))
+
+
+def check_visual(pdf, source_texts):
+    """Every rendered line, read back in Hebrew order, must be found in the source text. A bidi bug changes
+    the reading order ("ו-3 ... Stripe.") and the line no longer matches."""
+    try:
+        import pymupdf
+    except ImportError:
+        try:
+            import fitz as pymupdf
+        except ImportError:
+            log("WARN", "pymupdf לא מותקן: סדר הקריאה ברינדור לא נבדק (pip install pymupdf)")
+            return
+    src = norm("".join(source_texts))
+    bad, checked = [], 0
+    doc = pymupdf.open(pdf)
+    for pi, page in enumerate(doc, 1):
+        rows = {}
+        for b in page.get_text("rawdict")["blocks"]:
+            for ln in b.get("lines", []):
+                for sp in ln["spans"]:
+                    for c in sp["chars"]:
+                        y = round((c["bbox"][1] + c["bbox"][3]) / 2 / 2.5)
+                        rows.setdefault(y, []).append((c["bbox"][0], c["bbox"][2], c["c"], sp["size"]))
+        for y in sorted(rows):
+            chars = sorted(rows[y])
+            # split the visual row into segments at wide gaps (table columns, tab stops)
+            segs, cur, prev_x1 = [], [], None
+            for x0, x1, ch, size in chars:
+                if prev_x1 is not None and x0 - prev_x1 > size * 1.8:
+                    segs.append(cur)
+                    cur = []
+                cur.append(ch)
+                prev_x1 = x1
+            segs.append(cur)
+            for seg in segs:
+                vis = "".join(seg).replace("\u00a0", " ")
+                if not has_hebrew(vis) or not re.search(r"[A-Za-z0-9]", vis):
+                    continue
+                checked += 1
+                ro = norm(reading_order(vis))
+                if ro and ro not in src:
+                    bad.append((pi, reading_order(vis).strip()))
+    for pi, t in bad[:8]:
+        log("FAIL", f"סדר קריאה שבור ברינדור (עמוד {pi}): '{t[:70]}'")
+    if checked and not bad:
+        log("PASS", f"סדר הקריאה תקין ב-{checked} שורות מעורבות (עברית + לועזית/מספרים)")
+
+
+def page_fill(pdf):
+    """Fraction of the last page's height that holds text (top margin to last line)."""
+    try:
+        import pymupdf
+    except ImportError:
+        return None
+    doc = pymupdf.open(pdf)
+    pg = doc[-1]
+    ys = [b[3] for b in pg.get_text("blocks") if b[4].strip() and b[3] < pg.rect.height * 0.94]
+    return (max(ys) / pg.rect.height) if ys else 0.0
 
 
 def check_pdf(pdf):
@@ -368,12 +542,25 @@ def main():
         doc, texts = check_docx(ARGS.file)
         full = "\n".join(texts)
         kind = kind or ("quote" if "הצעת מחיר" in full else "doc")
+        check_text(texts, kind)
+        check_docx_kind(doc, texts, kind)
         if kind == "quote":
             check_quote(doc, texts)
         if kind == "cv":
             check_cv(texts, pages)
+        if pdf:
+            check_visual(pdf, texts)
+            fill = page_fill(pdf)
+            if fill is not None and pages and pages > 1 and fill < 0.4:
+                log("FAIL", f"העמוד האחרון מלא רק {fill:.0%}: לאזן (לדחוס או להעביר תוכן), לא להשאיר עמוד חצי ריק")
+            if fill is not None and kind == "cv" and pages == 1 and fill < 0.8:
+                log("WARN", f"קורות החיים ממלאים {fill:.0%} מהעמוד: להגדיל גופן/מרווחים (doc_build עושה fit אוטומטי)")
     elif ext == "pptx":
         check_pptx(ARGS.file, kind or "deck")
+        if pdf:
+            from pptx import Presentation
+            check_visual(pdf, [p.text for sl in Presentation(ARGS.file).slides for sh in sl.shapes
+                               if sh.has_text_frame for p in sh.text_frame.paragraphs])
     else:
         sys.exit("qa_text.py works on the SOURCE file (.docx / .pptx). For a PDF only, run qa_doc.sh.")
     if ARGS.max_pages and pages and pages > ARGS.max_pages:

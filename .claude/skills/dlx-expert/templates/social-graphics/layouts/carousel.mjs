@@ -16,7 +16,7 @@ export default (ctx) => {
   const decor = `<div class="canvas" style="left:0;width:${TW}px">
     <div data-role="decor" style="position:absolute;inset:0;background:linear-gradient(180deg,var(--bg) 0%,var(--surface) 70%,var(--bg) 100%)"></div>
     ${d.slides.map((_, i) => glow({x: i * W + W / 2, y: shelf - 280, r: 520, a: 0.30})).join('')}
-    ${d.slides.slice(1).map((_, i) => slashes({x: (i + 1) * W - 120, y: shelf - 60, h: 120, opacity: 0.9})).join('')}
+    ${d.slides.slice(1).map((_, i) => slashes({x: (i + 1) * W - 150, y: shelf - 150, h: 210, opacity: 0.95})).join('')}
     <div data-role="decor" style="position:absolute;left:0;width:${TW}px;top:${shelf}px;height:5px;background:var(--accent);box-shadow:0 0 40px 4px color-mix(in srgb,var(--accent) 45%,transparent)"></div>
     <div data-role="decor" style="position:absolute;left:0;width:${TW}px;top:${shelf + 5}px;bottom:0;background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 12%,var(--bg)),var(--bg) 60%)"></div>
     ${grain()}
@@ -26,12 +26,12 @@ export default (ctx) => {
     const head = (eb) => `<div style="position:absolute;top:${T + 6}px;left:${L}px;right:${R}px;display:flex;justify-content:space-between;align-items:center">
       ${eyebrow(eb || '')}${logo(ctx, {h: 42})}</div>`;
     const foot = `<div style="position:absolute;bottom:${B}px;left:${L}px;right:${R}px;display:flex;justify-content:space-between;align-items:center">
-      <div class="count" data-role="text" dir="ltr">${i + 1}/${n}</div>
+      ${i < n - 1 ? `<div class="count" data-role="text" dir="ltr">${i + 1}/${n}</div>` : '<div></div>'}
       ${i < n - 1 ? `<div class="next" data-role="text">${rich(d.swipeLabel || 'הבא')}${NEXT}</div>` : ''}</div>`;
-    const title = (t, size = 84) => `<h2 data-role="headline" class="h2" style="position:absolute;top:${T + 96}px;right:${R}px;left:${L}px;font-size:${size}px">${rich(t)}</h2>`;
+    const title = (t, size = 96) => `<h2 data-role="headline" class="h2" style="position:absolute;top:${T + 96}px;right:${R}px;left:${L}px;font-size:${size}px">${rich(t)}</h2>`;
     // label centred under its product; name optional (avoid repeating the same caption twice: put it in s.sub)
-    const label = (it, cx, vsize = 76) => `<div style="position:absolute;top:${shelf + 30}px;left:${Math.round(cx - 180)}px;width:360px;text-align:center">
-      <div class="iv" dir="ltr" style="font-size:${vsize}px">${esc(it.spec)}</div>${it.name ? `<div class="in" data-role="text">${rich(it.name)}</div>` : ''}</div>`;
+    const label = (it, cx0, vsize = 76) => { const cx = Math.min(Math.max(cx0, L + 130), W - R - 130); return `<div style="position:absolute;top:${shelf + 30}px;left:${Math.round(cx - 210)}px;width:420px;text-align:center;white-space:nowrap">
+      <div class="iv" dir="ltr" style="font-size:${vsize}px">${esc(it.spec.split(' · ')[0])}</div>${it.spec.includes(' · ') ? `<div class="in" dir="ltr" data-role="text" style="font-size:40px;font-weight:800">${esc(it.spec.split(' · ').slice(1).join(' · '))}</div>` : ''}${it.name ? `<div class="in" data-role="text">${rich(it.name)}</div>` : ''}</div>`; };
     const subline = s.sub ? `<div class="sub2" data-role="text" style="position:absolute;top:${T + 196}px;right:${R}px;left:${L}px">${rich(s.sub)}</div>` : '';
     let body = '';
     if (s.kind === 'cover') {
@@ -42,17 +42,18 @@ export default (ctx) => {
     } else if (s.kind === 'overlap') {
       const [a, b] = s.items;
       body = `${head(s.eyebrow)}${title(s.title)}${subline}
-        ${product(ctx, b.product, {h: 600, cx: W * 0.36, bottom: shelf - 26, reflect: false, z: 2, dim: 0.8})}
-        ${product(ctx, a.product, {h: 600, cx: W * 0.62, bottom: shelf, reflect: false, z: 3})}
-        ${label(b, W * 0.25, 60)}${label(a, W * 0.69, 84)}`;
+        ${product(ctx, b.product, {h: 600, cx: W * 0.33, bottom: shelf, reflect: false, z: 2, dim: 0.78})}
+        ${product(ctx, a.product, {h: 600, cx: W * 0.67, bottom: shelf, reflect: false, z: 3})}
+        ${label(b, W * 0.33, 64)}${label(a, W * 0.67, 64)}`;
     } else if (s.kind === 'range') {
-      const k = s.items.length; const h = k > 3 ? 400 : 480;
+      const k = s.items.length; const ratio = s.items.reduce((p, it) => p + ctx.dim(it.product).w / ctx.dim(it.product).h, 0);
+      const h = Math.min(k > 3 ? 470 : 540, Math.floor((W - L - R - 24 * (k - 1)) / ratio));
       const ws = s.items.map((it) => h * ctx.dim(it.product).w / ctx.dim(it.product).h);
-      const gap = (W - L - R - ws.reduce((p, q) => p + q, 0)) / (k + 1); let x = W - R - gap; // RTL: first item on the right
+      const gap = Math.max(8, (W - L - R - ws.reduce((p, q) => p + q, 0)) / (k - 1 || 1)); let x = W - R; // RTL: first item on the right
       body = `${head(s.eyebrow)}${title(s.title)}${subline}` + s.items.map((it, j) => { const cx = x - ws[j] / 2; x -= ws[j] + gap;
         return `${product(ctx, it.product, {h, cx, bottom: shelf, reflect: false, z: 3})}
-          <div style="position:absolute;top:${shelf + 30}px;left:${Math.round(cx - 120)}px;width:240px;text-align:center">
-            <div class="iv" dir="ltr" style="font-size:64px">${esc(it.spec)}</div>${it.name ? `<div class="in" data-role="text" style="font-size:32px">${rich(it.name)}</div>` : ''}</div>`; }).join('');
+          <div style="position:absolute;top:${shelf + 30}px;left:${Math.round(Math.min(Math.max(cx, L + 100), W - R - 100) - 100)}px;width:200px;text-align:center">
+            <div class="iv" dir="ltr" style="font-size:64px">${esc(it.spec)}</div><div class="in" data-role="text" style="font-size:32px;line-height:1.15;min-height:2.3em">${rich(it.name || '')}</div></div>`; }).join('');
     } else if (s.kind === 'compare') {
       const [a, b] = s.items; const mx = Math.max(a.weight || 1, b.weight || 1);
       // the stronger item is the hero: bigger, in front; numerals share one baseline
@@ -64,15 +65,17 @@ export default (ctx) => {
     } else if (s.kind === 'number') {
       body = `${head(s.eyebrow)}
         <div class="big" data-role="headline" dir="ltr" style="position:absolute;top:${T + 90}px;right:${R}px">${esc(s.value)}</div>
-        <div class="biglabel" data-role="text" style="position:absolute;top:${T + 380}px;right:${R}px;width:${W * 0.46}px">${rich(s.label)}</div>
+        ${glow({x: L + 230, y: shelf - 300, r: 380, a: 0.35})}
+        <div class="biglabel" data-role="text" style="position:absolute;top:${T + 400}px;right:${R}px;width:${W * 0.46}px">${rich(s.label)}</div>
+        <div style="position:absolute;right:${R}px;top:${T + 600}px;width:${W * 0.40}px">${(s.specs || []).map((sp) => `<div class="spec"><div class="v" dir="ltr">${esc(sp.value)}</div><div class="k" data-role="text">${rich(sp.label)}</div></div>`).join('')}</div>
         ${product(ctx, s.product, {h: Math.min(640, Math.round(ctx.dim(s.product).h * 1.1)), cx: L + 230, bottom: shelf, reflect: false, z: 3})}
-        ${s.note ? `<div class="sub" data-role="text" style="position:absolute;top:${shelf + 64}px;right:${R}px;left:${L}px;text-align:center">${rich(s.note)}</div>` : ''}`;
+        ${s.note ? `<div class="sub" data-role="text" style="position:absolute;top:${shelf + 64}px;right:${R}px;left:${L}px">${rich(s.note)}</div>` : ''}`;
     } else if (s.kind === 'cta') {
-      body = `<div style="position:absolute;top:${T + 60}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${logo(ctx, {h: 64})}</div>
-        <h1 data-role="headline" class="hl" style="position:absolute;top:${T + 180}px;right:${R}px;left:${L}px;text-align:center">${lines(s.headline)}</h1>
-        <div style="position:absolute;top:${T + 420}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${cta(s.cta || '', {size: 46})}</div>
-        ${lineup(ctx, s.products || [], {x0: L + 40, x1: W - R - 40, bottom: shelf, h: 360, dimOthers: 0.88})}
-        <div class="contact" style="position:absolute;top:${shelf + 40}px;left:${L}px;right:${R}px">${(s.contact || []).map((c) => `<div data-role="text" dir="ltr">${esc(c)}</div>`).join('')}</div>`;
+      body = `<div style="position:absolute;top:${T + 30}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${logo(ctx, {h: 60})}</div>
+        <h1 data-role="headline" class="hl" style="position:absolute;top:${T + 130}px;right:${R}px;left:${L}px;text-align:center">${lines(s.headline)}</h1>
+        <div style="position:absolute;top:${T + 350}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${cta(s.cta || '', {size: 46})}</div>
+        ${(s.products || []).length ? product(ctx, s.products[Math.floor(s.products.length / 2)], {h: Math.min(500, Math.round(ctx.dim(s.products[Math.floor(s.products.length / 2)]).h * 1.1)), cx: W / 2, bottom: shelf, reflect: false, z: 3}) : ''}
+        <div class="contact" style="position:absolute;top:${shelf + 44}px;left:${L}px;right:${R}px">${(s.contact || []).map((c) => `<div class="chip" data-role="text" dir="ltr">${esc(c)}</div>`).join('')}</div>`;
     }
     return `<div class="canvas slide" style="left:${i * W}px;background:transparent"><div class="layer">${body}${foot}</div></div>`;
   };
@@ -85,9 +88,13 @@ export default (ctx) => {
     .sub{font-weight:700;font-size:40px;color:var(--text)}
     .iv{font-weight:900;line-height:1;color:var(--accent)}
     .in{font-weight:600;font-size:36px;margin-top:10px}
-    .sub2{font-weight:600;font-size:38px;color:var(--muted)}
+    .sub2{font-weight:600;font-size:38px;color:var(--text)}
+    .spec{padding:18px 0 20px;border-top:2px solid color-mix(in srgb,var(--text) 18%,transparent)}
+    .spec .v{font-weight:900;font-size:64px;line-height:1;color:var(--accent);text-align:right}
+    .spec .k{font-weight:500;font-size:34px;margin-top:6px}
     .big{margin-right:12px;font-weight:900;font-size:250px;line-height:.85;letter-spacing:-.04em;color:var(--accent)}
     .biglabel{font-weight:800;font-size:56px;line-height:1.12;text-align:right}
-    .contact{display:flex;justify-content:center;gap:56px;font-weight:800;font-size:46px;color:var(--text)}`;
+    .contact{display:flex;justify-content:center;gap:64px;font-weight:800;font-size:46px;color:var(--text)}
+    .chip{padding:10px 0 14px}`;
   return {html, css, slides: n};
 };

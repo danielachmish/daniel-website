@@ -20,9 +20,12 @@ Slide kinds (spec "slides"[].kind):
   formula   {kicker, headline, terms[{value,label}], result{value,label}, note?}
   tiers     {kicker, headline, tiers[3]{name,price,points[],featured?}, note?}
   table     {kicker, headline, columns[], rows[[...]], note?}
-  ask       {kicker, headline, uses[{label,pct,frac}], team[{name,role,initials?}]}
+  ask       {kicker, headline, uses[{label,pct}], promise?, next?, contact?}  (bars only if pct are real numbers)
+  team      {kicker, headline, team[{name, role, initials, edge}]}
+  finance   {kicker, headline, columns[], rows[[...]], unit?{price_incl_vat, vat, after_fees, after_tax}}
   closing   {headline, next?, contact}
-Every slide may have "notes".
+Every slide may have "notes" (sources and caveats go there, never as small print on the slide).
+Spec "sources": [{"claim", "source"}] is stored in the file; qa_text.py accepts those claims.
 """
 import json
 import os
@@ -141,8 +144,7 @@ def header(slide, t, s, n, total, dark=False):
         text(slide, M, 0.45, W - 2 * M, 0.5, s["kicker"], MIN_PT, t.accent if not dark else t.accent2, bold=True)
     text(slide, M, 0.95, W - 2 * M, 1.6, s["headline"], HEAD_PT, ink, bold=True, spacing=1.0)
     # footer: page number on the end side, brand on the start side
-    pn = text(slide, M, H - 0.55, 2.0, 0.4, f"{n}/{total}", 12, t.muted, align="l")
-    pn.name = "footer-pagenum"  # qa_text.py exempts shapes named footer-* from the minimum size
+    # no small print on a presented slide: no page number, no footnotes (sources go to the speaker notes)
     rect(slide, W - M - 0.9, H - 0.42, 0.9, 0.06, t.accent)
 
 
@@ -301,10 +303,11 @@ def k_table(sl, t, s, n, total):
     header(sl, t, s, n, total)
     cols, rows = s["columns"], s["rows"]
     tw = W - 2 * M
-    first = tw * 0.34
+    first = tw * (0.34 if len(cols) <= 5 else 0.27)
     cw = (tw - first) / (len(cols) - 1)
-    rh0, rhn = 1.0, 0.66      # header row is taller: column names may take two lines
-    y = 2.6
+    # header row is taller by default: column names may take two lines
+    rh0, rhn = s.get("header_h", 1.0), s.get("row_h", 0.66)
+    y = s.get("top", 2.6)
     for ri, row in enumerate([cols] + rows):
         rh = rh0 if ri == 0 else rhn
         x = W - M
@@ -325,31 +328,72 @@ def k_table(sl, t, s, n, total):
         text(sl, M, y + 0.1, tw, 0.6, s["note"], MIN_PT, t.muted)
 
 
+def _num(v):
+    try:
+        return float(str(v).replace("%", "").strip())
+    except ValueError:
+        return None
+
+
 def k_ask(sl, t, s, n, total):
+    """The ask: amount, runway, milestone (headline), use of funds, then the promise, next step and contact.
+    Bars are drawn ONLY from real numbers: a placeholder percentage gets no bar, so the slide never implies a
+    split nobody decided."""
     bg(sl, t.light)
     header(sl, t, s, n, total)
     half = (W - 2 * M - 0.5) / 2
     xr = W - M - half
-    text(sl, xr, 2.65, half, 0.5, "לאן הכסף הולך", MIN_PT, t.accent, bold=True)
-    y = 3.25
-    for u in s["uses"]:
+    text(sl, xr, 2.55, half, 0.5, "לאן הכסף הולך", MIN_PT, t.accent, bold=True)
+    y = 3.15
+    nums = [_num(u.get("pct")) for u in s["uses"]]
+    real = all(v is not None for v in nums) and abs(sum(nums) - 100) < 0.5
+    for u, v in zip(s["uses"], nums):
         text(sl, xr, y, half, 0.5, f"{u['label']}  ·  {u['pct']}", MIN_PT, t.ink)
-        rect(sl, xr, y + 0.55, half, 0.14, "E1E6F0")
-        frac = u.get("frac", 0.33)
-        rect(sl, xr + half * (1 - frac), y + 0.55, half * frac, 0.14, t.accent)
-        y += 0.95
+        if real:
+            rect(sl, xr, y + 0.55, half, 0.14, "E1E6F0")
+            rect(sl, xr + half * (1 - v / 100), y + 0.55, half * v / 100, 0.14, t.accent)
+        y += 0.95 if real else 0.7
     xl = M
-    text(sl, xl, 2.65, half, 0.5, "הצוות", MIN_PT, t.accent, bold=True)
-    y = 3.25
+    if s.get("promise"):
+        rect(sl, xl, 2.55, half, 3.0, t.dark, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.05)
+        prom = s["promise"] if isinstance(s["promise"], list) else [s["promise"]]
+        text(sl, xl + 0.35, 2.75, half - 0.7, 1.3, prom, 28, "FFFFFF", bold=True, spacing=1.0)
+        if s.get("next"):
+            text(sl, xl + 0.35, 4.05, half - 0.7, 1.0, s["next"], MIN_PT, t.accent2, bold=True)
+        if s.get("contact"):
+            text(sl, xl + 0.35, 4.95, half - 0.7, 0.55, s["contact"], MIN_PT, "C9D2E6")
+
+
+def k_team(sl, t, s, n, total):
+    """Team: one row per person - name, role, and the ONE fact that makes them right for this (unfair advantage)."""
+    bg(sl, t.light)
+    header(sl, t, s, n, total)
+    y = 2.6
     for m in s["team"]:
-        if m.get("initials"):
-            rect(sl, xl + half - 0.7, y + 0.02, 0.62, 0.62, t.dark, MSO_SHAPE.OVAL)
-            text(sl, xl + half - 0.7, y + 0.06, 0.62, 0.55, m["initials"], MIN_PT, "FFFFFF", bold=True,
-                 align="ctr", anchor="m")
-        else:
-            rect(sl, xl + half - 0.14, y + 0.08, 0.12, 0.75, t.accent2)
-        text(sl, xl, y, half - 0.8, 0.9, [f"**{m['name']}**", m["role"]], MIN_PT, t.ink, spacing=0.95)
-        y += 1.15
+        rect(sl, M, y, W - 2 * M, 1.15, t.card, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.08, line="D8DDE8")
+        rect(sl, W - M - 1.0, y + 0.22, 0.72, 0.72, t.dark, MSO_SHAPE.OVAL)
+        text(sl, W - M - 1.0, y + 0.26, 0.72, 0.62, m.get("initials", ""), MIN_PT, "FFFFFF", bold=True,
+             align="ctr", anchor="m")
+        text(sl, W - M - 5.0, y + 0.1, 3.8, 0.95, [f"**{m['name']}**", m["role"]], MIN_PT, t.ink, spacing=0.95)
+        text(sl, M + 0.3, y + 0.1, W - 2 * M - 5.6, 0.95, m.get("edge", ""), MIN_PT, t.muted, anchor="m")
+        y += 1.35
+
+
+def k_finance(sl, t, s, n, total):
+    """Financials: a 3-year table (customers, revenue, costs, cash flow, break-even) and a per-sale profitability
+    strip that DOES the VAT arithmetic (price incl. VAT / 1.18) and leaves fees and tax as inputs."""
+    k_table(sl, t, dict(s, note=None, header_h=0.62, row_h=0.6, top=2.45), n, total)
+    if s.get("unit"):
+        u = s["unit"]
+        y = 2.45 + 0.62 + 0.6 * len(s["rows"]) + 0.35
+        rect(sl, M, y, W - 2 * M, 0.85, t.dark, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.15)
+        price = _num(u.get("price_incl_vat"))
+        vat = _num(u.get("vat", 18)) or 18
+        net = f"{price / (1 + vat / 100):,.0f} ₪" if price else "[לאשר]"
+        steps = [f"{u.get('price_incl_vat')} ₪ ללקוח", f"{net} בלי מע\"מ",
+                 f"סליקה: {u.get('after_fees', '[לאשר]')}", f"מס: {u.get('after_tax', '[לאשר]')}"]
+        # "·" not an arrow: Heebo has no arrow glyphs (a fallback font would appear in the PDF)
+        text(sl, M + 0.25, y + 0.05, W - 2 * M - 0.5, 0.75, "  ·  ".join(steps), MIN_PT, "FFFFFF", anchor="m")
 
 
 def k_closing(sl, t, s, n, total):
@@ -378,6 +422,8 @@ def build(spec, out):
         KINDS[s["kind"]](sl, t, s, n, total)
         notes(sl, s)
     prs.core_properties.title = spec.get("title", "")
+    if spec.get("sources"):
+        prs.core_properties.comments = json.dumps({"sources": spec["sources"]}, ensure_ascii=False)
     prs.core_properties.language = "he-IL"
     prs.save(out)
 

@@ -21,11 +21,14 @@ export const glow = ({x, y, r, color = 'var(--accent)', a = 0.28}) =>
    background:radial-gradient(circle, color-mix(in srgb, ${color} ${Math.round(a * 100)}%, transparent) 0%, transparent 68%);"></div>`;
 
 // Brand device taken from the client's own logo (two slanted bars). Override in brand.json -> motif: false to disable.
-export const slashes = ({x, y, h, color = 'var(--accent)', opacity = 1, gap = 0.36, w = 0.42}) => {
-  const bw = h * w;
-  return `<div data-role="decor" style="position:absolute;left:${x}px;top:${y}px;height:${h}px;opacity:${opacity}">
+// bw/gapPx: fixed bar width and gap in px (so a bar can bleed off the canvas without getting fatter).
+// fade: fraction of the height that fades in from the top (no hard horizontal edge where the bars start).
+export const slashes = ({x, y, h, color = 'var(--accent)', opacity = 1, gap = 0.36, w = 0.42, bw: bwPx, gapPx, fade = 0}) => {
+  const bw = bwPx || h * w; const g = gapPx || h * gap;
+  const mask = fade ? `-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 ${Math.round(fade * 100)}%);mask-image:linear-gradient(180deg,transparent 0,#000 ${Math.round(fade * 100)}%);` : '';
+  return `<div data-role="decor" style="position:absolute;left:${x}px;top:${y}px;height:${h}px;width:${Math.round(2 * bw + g + h)}px;opacity:${opacity};${mask}">
     <div style="position:absolute;left:0;top:0;width:${bw}px;height:${h}px;background:${color};transform:skewX(-38deg);transform-origin:bottom left"></div>
-    <div style="position:absolute;left:${bw + h * gap}px;top:0;width:${bw}px;height:${h}px;background:${color};transform:skewX(-38deg);transform-origin:bottom left"></div></div>`;
+    <div style="position:absolute;left:${bw + g}px;top:0;width:${bw}px;height:${h}px;background:${color};transform:skewX(-38deg);transform-origin:bottom left"></div></div>`;
 };
 
 // mono: 'dark' -> solid black logo for light/accent backgrounds (when no onLight file exists).
@@ -38,12 +41,13 @@ export const logo = (ctx, {h = 52, style = '', mono = null} = {}) => {
 
 // Real product photo (cut out). Never re-draw or AI-generate the product. Optional floor reflection + contact shadow.
 // Position by centre x and floor line (bottom). Width comes from the real image ratio.
-export const product = (ctx, src, {h, cx, bottom, reflect = true, shadow = true, z = 2, rot = 0, dim: dimmed = 1}) => {
+// rim: a thin brand-coloured edge light + soft back-glow, so dark packaging separates from a dark background.
+export const product = (ctx, src, {h, cx, bottom, reflect = true, shadow = true, z = 2, rot = 0, dim: dimmed = 1, rim = true}) => {
   const d = ctx.dim(src); const w = Math.round(h * d.w / d.h); const x = Math.round(cx - w / 2); const y = Math.round(bottom - h);
   return `
   <div data-role="decor" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;z-index:${z};transform:rotate(${rot}deg)">
     ${shadow ? `<div style="position:absolute;left:8%;right:8%;bottom:-${h * 0.035}px;height:${h * 0.07}px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.85),transparent);filter:blur(6px)"></div>` : ''}
-    <img data-role="product" src="${ctx.asset(src)}" style="height:${h}px;width:auto;display:block;position:relative;filter:drop-shadow(0 ${h * 0.03}px ${h * 0.05}px rgba(0,0,0,.55))${dimmed < 1 ? ` brightness(${dimmed})` : ''}">
+    <img data-role="product" src="${ctx.asset(src)}" style="height:${h}px;width:auto;display:block;position:relative;filter:${rim ? `drop-shadow(0 0 1.5px color-mix(in srgb,var(--accent) 75%,transparent)) drop-shadow(0 0 ${Math.round(h * 0.06)}px color-mix(in srgb,var(--accent) 38%,transparent)) ` : ''}drop-shadow(0 ${h * 0.03}px ${h * 0.05}px rgba(0,0,0,.55))${dimmed < 1 ? ` brightness(${dimmed})` : ''}">
     ${reflect ? `<img data-role="decor" src="${ctx.asset(src)}" style="height:${h}px;width:auto;display:block;position:absolute;top:${h + 4}px;left:0;transform:scaleY(-1);opacity:.08;
       -webkit-mask-image:linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 32%);mask-image:linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 32%)">` : ''}
   </div>`;

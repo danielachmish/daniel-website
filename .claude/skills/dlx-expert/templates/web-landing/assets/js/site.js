@@ -18,20 +18,26 @@
     reveals.forEach(function (el) { el.classList.add('is-in'); });
   }
 
-  /* ---------- כפתור דביק בטלפון: מופיע אחרי ה-Hero, נעלם ליד הטופס ---------- */
+  /* ---------- כפתור דביק בטלפון: מופיע אחרי שכפתור ה-Hero יצא מהמסך, ונעלם כשמגיעים לטופס (וגם אחריו) ---------- */
   var sticky = document.querySelector('.sticky-cta');
   var heroCta = document.querySelector('[data-hero-cta]');
   var formSection = document.getElementById('signup');
-  if (sticky && heroCta && formSection && 'IntersectionObserver' in window) {
-    var heroVisible = true, formVisible = false;
+  if (sticky && heroCta && formSection) {
+    var ticking = false;
     var update = function () {
-      var show = !heroVisible && !formVisible;
+      ticking = false;
+      var vh = window.innerHeight;
+      var heroGone = heroCta.getBoundingClientRect().bottom < 0;
+      var beforeForm = formSection.getBoundingClientRect().top > vh * 0.85;
+      var show = heroGone && beforeForm;
+      if (sticky.classList.contains('is-visible') === show) return;
       sticky.classList.toggle('is-visible', show);
       sticky.setAttribute('aria-hidden', show ? 'false' : 'true');
-      sticky.querySelectorAll('a,button').forEach(function (b) { b.tabIndex = show ? 0 : -1; });
+      sticky.querySelectorAll('a,button').forEach(function (el) { el.tabIndex = show ? 0 : -1; });
     };
-    new IntersectionObserver(function (es) { heroVisible = es[0].isIntersecting; update(); }).observe(heroCta);
-    new IntersectionObserver(function (es) { formVisible = es[0].isIntersecting; update(); }, { rootMargin: '0px 0px -20% 0px' }).observe(formSection);
+    var onScroll = function () { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
     update();
   }
 
@@ -128,7 +134,13 @@
       clearTimeout(timer);
       btn.disabled = false; btn.innerHTML = btnLabel;
       status.classList.add('form-status--error');
-      status.textContent = form.dataset.msgFail || 'השליחה לא הצליחה. בדקו את החיבור ונסו שוב, או התקשרו אלינו.';
+      status.textContent = form.dataset.msgFail || 'השליחה לא הצליחה. בדקו את החיבור ונסו שוב.';
+      if (form.dataset.fallbackHref) { // דרך חלופית: טלפון / וואטסאפ
+        var alt = document.createElement('a');
+        alt.href = form.dataset.fallbackHref; alt.className = 'form-status__alt';
+        alt.textContent = form.dataset.fallbackLabel || 'או דברו איתנו ישירות';
+        status.appendChild(document.createTextNode(' ')); status.appendChild(alt);
+      }
       status.focus();
     });
   });
