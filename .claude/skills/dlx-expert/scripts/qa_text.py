@@ -46,7 +46,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import json  # noqa: E402
 from hebrew_text import (HARD_LEFTOVER, HEB, OLD_MARKER, PLACEHOLDER, bidi_problems, find_claims,  # noqa: E402
-                         has_hebrew)
+                         find_dummies, has_hebrew)
 
 VAT_RATE = 18  # Israel, from 1.1.2025 (רשות המסים). Verified 11/2026 - re-check every January.
 AI_CLICHES = ["בעולם המשתנה", "חשוב לציין", "לסיכום ניתן לומר", "הנני לפנות", "בעידן של היום", "מהווה פתרון",
@@ -57,6 +57,11 @@ SELF_INCRIM = ["טעות בתום לב", "לא שמתי לב", "אני מודה"
                "לא ראיתי שאסור"]
 HEB_VERB = re.compile(r"^(?:[\u05d0-\u05ea]{2,}תי|[\u05d0-\u05ea]{2,}נו|אחראית|אחראי)(?=\s|$)")
 SOURCES = []
+SUPPLIED = []
+SLIDE_INSTRUCTIONS = ["המחשה", "בלי מקור", "אין עדיין נתונים", "נבדק מול", "לפני הפגישה", "לא מציגים", "להחליף ב",
+                      "לבדוק מול", "TBD"]
+COMPETITOR_CLAIM = re.compile(r"מתחר|רק אנחנו|אנחנו את|טובים יותר|היחידים|לעומת")
+TRACKING = re.compile(r"פיקסל|Pixel|Google Analytics|Tag Manager|Hotjar|TikTok Pixel", re.I)
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "documents", "fonts")
 
 results = []
@@ -74,7 +79,7 @@ def num(s):
 
 # ---------------------------------------------------------------- generic text checks
 def norm(s):
-    return re.sub(r"[\s\u00a0\u200e\u200f\u202a-\u202e\u2066-\u2069()\[\]{}\"'״׳“”‘’•]", "", s)
+    return re.sub(r"[\s\u00a0\u2060\u200e\u200f\u202a-\u202e\u2066-\u2069()\[\]{}\"'״׳“”‘’•]", "", s)
 
 
 def check_text(paras, kind=None):
@@ -92,6 +97,13 @@ def check_text(paras, kind=None):
         log("FAIL", f"טענה בלי מקור (להוסיף מקור ל-sources או לסמן [לאשר]): {c}")
     if soft:
         log("WARN", f"{len(soft)} טענות עם מספר/תוצאה: לוודא שכל אחת מהלקוח או ממקור: " + " | ".join(soft[:5]))
+    supplied = " ".join(SUPPLIED)
+    for p in paras:
+        for k, snip in find_dummies(p):
+            if snip not in supplied:
+                log("FAIL", f"{k} בלי סימון: '{snip}'. פרט שלא נמסר מהלקוח = [לאשר: ...], או להוסיף ל-supplied")
+    if TRACKING.search(full) and not re.search(r"עוגיות|קוקיז|cookies", full, re.I):
+        log("FAIL", "יש כלי מעקב (פיקסל / Analytics) בלי שורת הסכמה לעוגיות (באנר עוגיות ומדיניות)")
     if kind == "cv":
         for c in CV_CLICHES:
             if c in full:
@@ -157,7 +169,9 @@ def check_docx(path):
 
 def load_sources(comments):
     try:
-        SOURCES.extend(json.loads(comments or "{}").get("sources", []))
+        meta = json.loads(comments or "{}")
+        SOURCES.extend(meta.get("sources", []))
+        SUPPLIED.extend(meta.get("supplied", []))
     except (ValueError, AttributeError):
         pass
 
@@ -190,6 +204,23 @@ def check_docx_kind(doc, texts, kind):
         no_annex = [t for t in numbered if "נספח" not in t and re.search(r"\d|צילום|תמונה|אישור", t)]
         for t in no_annex:
             log("WARN", f"טענה עובדתית בלי הפניה לנספח: '{t.strip()[:50]}'")
+        cited = []
+        for m in re.finditer(r"נספח ([\u05d0-\u05ea])'", full):
+            if m.group(1) not in cited:
+                cited.append(m.group(1))
+        if cited and cited != sorted(cited):
+            log("FAIL", f"הנספחים לא ממוספרים לפי סדר האזכור הראשון: {' '.join(cited)}")
+        if re.search(r"דוח|דו\"ח|קנס|תביעה|חוזה|הסכם|תלונה|ערעור", full):
+            ck = os.path.splitext(ARGS.file)[0] + "-checklist.docx"
+            if not os.path.exists(ck):
+                log("FAIL", "מסמך משפטי בלי רשימת הגשה ללקוח (-checklist.docx) עם הסתייגות והפניה לעו\"ד")
+            else:
+                from docx import Document as _D
+                ckt = "\n".join(p.text for p in _D(ck).paragraphs)
+                if "לא ייעוץ משפטי" not in ckt or "עו\"ד" not in ckt:
+                    log("FAIL", "ברשימת ההגשה אין הסתייגות ('זה לא ייעוץ משפטי') והפניה לעו\"ד")
+                else:
+                    log("PASS", "רשימת הגשה עם הסתייגות משפטית והפניה לעו\"ד")
         if re.search(r"דוח|דו\"ח|קנס", full) and "229" not in full:
             log("FAIL", "ערעור על דוח בלי שורת מועד ומקור (סעיף 229 לחסד\"פ / המועד שבדוח)")
 
@@ -376,6 +407,17 @@ def check_pptx(path, kind):
             box_h = Emu(sh.height).pt
             if need_h > box_h * 1.08 and any(r.text.strip() for p in tf.paragraphs for r in p.runs):
                 over.append((si, "".join(r.text for r in tf.paragraphs[0].runs)[:30], need_h, box_h))
+        slide_text = " ".join(p.text for sh in sl.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs)
+        for ph in SLIDE_INSTRUCTIONS:
+            if ph in slide_text:
+                log("FAIL", f"שקף {si}: הוראת עבודה על השקף ('{ph}'). מקומה בהערות הדובר")
+        heads = [p.text for sh in sl.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs
+                 if any(r.font.size is not None and r.font.size.pt >= 32 for r in p.runs)]
+        for h in heads:
+            if "[לאשר" in h:
+                log("FAIL", f"שקף {si}: [לאשר] בכותרת ('{h[:40]}'). כותרת היא מסר; נתון חסר עובר לגוף השקף")
+            if COMPETITOR_CLAIM.search(h) and "[לאשר" in slide_text:
+                log("FAIL", f"שקף {si}: טענה על מתחרים בכותרת ('{h[:40]}') כשתאי ההשוואה לא נבדקו")
         if words > 45:
             wordy.append((si, words))
         if not (sl.has_notes_slide and sl.notes_slide.notes_text_frame.text.strip()):
@@ -418,13 +460,15 @@ def render_pdf(path):
     return g[0] if g else None
 
 
-_LTR_TOKEN = re.compile(r"[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?")
+_LTR_TOKEN = re.compile(r"[A-Za-z0-9@](?:[A-Za-z0-9@.,:/+#%&'_\-–]*[A-Za-z0-9%+#.])?,?(?:\x00[\u05d0-\u05ea]+)?")
 
 
 def reading_order(visual):
     """Turn a line's glyphs in VISUAL left-to-right order back into Hebrew reading order. Latin/number tokens
     are read left-to-right; consecutive tokens joined by single spaces form one LTR unit unless a token ends a
     sentence (. : ; ! ?). Everything else is read right-to-left."""
+    # an LTR-isolated range that ends in a Hebrew word ("2025–היום") is one left-to-right unit
+    visual = re.sub(r"(\d[\d/:]*–)(םויה|םויכ|הווהה?)", lambda m: m.group(1) + "\x00" + m.group(2)[::-1], visual)
     units, pos, cur, last_end = [], 0, None, -1
     for m in _LTR_TOKEN.finditer(visual):
         gap = visual[last_end:m.start()] if cur is not None else None
@@ -443,7 +487,7 @@ def reading_order(visual):
         units.extend(visual[last_end:])
     else:
         units.extend(visual)
-    return "".join(reversed(units))
+    return "".join(reversed(units)).replace("\x00", "")
 
 
 def check_visual(pdf, source_texts):
@@ -489,6 +533,36 @@ def check_visual(pdf, source_texts):
                     bad.append((pi, reading_order(vis).strip()))
     for pi, t in bad[:8]:
         log("FAIL", f"סדר קריאה שבור ברינדור (עמוד {pi}): '{t[:70]}'")
+    dirs = {"ltr": [], "rtl": []}
+    tok = r"(?:\d{1,2}/)?(?:19|20)\d\d|\d{1,2}:\d\d"
+    for pi, page in enumerate(doc, 1):
+        for line in page.get_text("rawdict")["blocks"]:
+            pass
+        rows = {}
+        for b in page.get_text("rawdict")["blocks"]:
+            for ln in b.get("lines", []):
+                for sp in ln["spans"]:
+                    for c in sp["chars"]:
+                        rows.setdefault(round((c["bbox"][1] + c["bbox"][3]) / 5), []).append((c["bbox"][0], c["c"]))
+        for y in sorted(rows):
+            vis = "".join(c for _, c in sorted(rows[y]))
+            for m in re.finditer(rf"({tok})\s*[–-]\s*({tok})", vis):
+                key = lambda x: (int(x.split("/")[-1]) * 100 + (int(x.split("/")[0]) if "/" in x else 0)
+                                 if ":" not in x else int(x.replace(":", "")))
+                a, b = key(m.group(1)), key(m.group(2))
+                if a != b:
+                    dirs["ltr" if a < b else "rtl"].append((pi, m.group(0)))
+            for m in re.finditer(rf"({tok})\s*[–-]\s*םויה", vis):
+                dirs["ltr"].append((pi, m.group(0)))
+            for m in re.finditer(rf"םויה\s*[–-]\s*({tok})", vis):
+                dirs["rtl"].append((pi, "היום–" + m.group(1)))
+    if dirs["ltr"] and dirs["rtl"]:
+        log("FAIL", f"טווחים בשני כיוונים במסמך: {len(dirs['ltr'])} משמאל לימין, {len(dirs['rtl'])} מימין לשמאל, "
+                    f"למשל '{dirs['rtl'][0][1]}' (עמוד {dirs['rtl'][0][0]})")
+    elif dirs["rtl"]:
+        log("FAIL", f"טווחים מוצגים מימין לשמאל ({dirs['rtl'][0][1]}), בניגוד למוסכמה (משמאל לימין)")
+    elif dirs["ltr"]:
+        log("PASS", f"כל {len(dirs['ltr'])} הטווחים מוצגים באותו כיוון (משמאל לימין)")
     if checked and not bad:
         log("PASS", f"סדר הקריאה תקין ב-{checked} שורות מעורבות (עברית + לועזית/מספרים)")
 

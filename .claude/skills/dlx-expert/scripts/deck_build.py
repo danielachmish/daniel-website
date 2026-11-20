@@ -20,11 +20,16 @@ Slide kinds (spec "slides"[].kind):
   formula   {kicker, headline, terms[{value,label}], result{value,label}, note?}
   tiers     {kicker, headline, tiers[3]{name,price,points[],featured?}, note?}
   table     {kicker, headline, columns[], rows[[...]], note?}
-  ask       {kicker, headline, uses[{label,pct}], promise?, next?, contact?}  (bars only if pct are real numbers)
+  ask       {kicker, headline, amount?, uses[{label,pct}], promise?, next?, contact?}  (bars only if pct are real numbers)
   team      {kicker, headline, team[{name, role, initials, edge}]}
   finance   {kicker, headline, columns[], rows[[...]], unit?{price_incl_vat, vat, after_fees, after_tax}}
   closing   {headline, next?, contact}
-Every slide may have "notes" (sources and caveats go there, never as small print on the slide).
+Every slide may have "notes" (sources and caveats go there, never as small print on the slide). Instructions to
+the builder ("המחשה", "בלי מקור לא מציגים", "נבדק מול...") belong in notes - qa_text.py fails them on a slide.
+Data points ({value,label}) take "status": "done" | "planned" and an optional "target"; a missing or planned
+value renders as an outlined "data needed / יעד" card, never as a big number box.
+Spec "status": "skeleton" marks the title slide "שלד לעבודה" and writes <deck>-data-to-collect.docx.
+Spec "sources": [{"claim","source"}] and "supplied": [facts the client gave] are stored in the file.
 Spec "sources": [{"claim", "source"}] is stored in the file; qa_text.py accepts those claims.
 """
 import json
@@ -39,6 +44,7 @@ from hebrew_text import bidi_fix, split_rich  # noqa: E402
 try:
     from pptx import Presentation
     from pptx.dml.color import RGBColor
+    from pptx.enum.dml import MSO_LINE
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
     from pptx.oxml.ns import qn
@@ -149,13 +155,41 @@ def header(slide, t, s, n, total, dark=False):
 
 
 # ---------------------------------------------------------------- slide kinds
+SKELETON = False
+
+
 def k_title(sl, t, s, n, total):
     bg(sl, t.dark)
     rect(sl, W - M - 1.2, 1.55, 1.2, 0.12, t.accent2)
     text(sl, M, 1.85, W - 2 * M, 1.4, s["title"], 72, "FFFFFF", bold=True, align="r")
     text(sl, M + 2.0, 3.35, W - 2 * M - 2.0, 1.6, s["subtitle"], 32, "D9E0F0", spacing=1.05)
-    if s.get("footer"):
-        text(sl, M, H - 1.1, W - 2 * M, 0.5, s["footer"], MIN_PT, "9AA6C2")
+    footer = ("שלד לעבודה · " if SKELETON else "") + s.get("footer", "")
+    if footer.strip(" ·"):
+        text(sl, M, H - 1.1, W - 2 * M, 0.5, footer.strip(" ·"), MIN_PT, "9AA6C2")
+
+
+def missing(item):
+    """A data point with no real value yet: placeholder, empty, or research that is only planned."""
+    v = str(item.get("value", ""))
+    return item.get("status") == "planned" or not v.strip() or "[לאשר" in v
+
+
+def value_card(sl, t, x, y, w, h, item, dark, big=44):
+    """Hero number card. A missing value never renders as a big number box: it becomes an outlined card that
+    says what data is needed (or the target, for planned research), so the slide doesn't imply a number."""
+    if missing(item):
+        box = rect(sl, x, y, w, h, t.dark if dark else t.light, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.05,
+                   line="5A6B94" if dark else "B9C1D3")
+        box.line.dash_style = MSO_LINE.DASH
+        head = ("יעד: " + item["target"]) if item.get("target") else (
+            "מתוכנן" if item.get("status") == "planned" else "נתון לאיסוף")
+        text(sl, x + 0.2, y + 0.3, w - 0.4, 0.9, head, 28, t.accent2 if item.get("target") else (
+            "9AA6C2" if dark else t.muted), bold=True, align="ctr", anchor="m")
+        text(sl, x + 0.2, y + 1.25, w - 0.4, h - 1.4, item["label"], MIN_PT, "C9D2E6" if dark else t.ink, align="ctr")
+        return
+    rect(sl, x, y, w, h, "1A2442" if dark else t.dark, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.05)
+    text(sl, x + 0.2, y + 0.2, w - 0.4, 1.4, item["value"], big, "FFFFFF", bold=True, align="ctr", anchor="m")
+    text(sl, x + 0.2, y + 1.65, w - 0.4, h - 1.8, item["label"], MIN_PT, "C9D2E6", align="ctr")
 
 
 def k_statement(sl, t, s, n, total):
@@ -170,9 +204,7 @@ def k_statement(sl, t, s, n, total):
         y += 1.2
     if has_stat:
         cw = (W - 2 * M) * 0.36
-        rect(sl, M, 2.75, cw, 3.3, t.dark, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.06)
-        text(sl, M + 0.3, 3.0, cw - 0.6, 1.5, s["stat"]["value"], 54, "FFFFFF", bold=True, align="ctr", anchor="m")
-        text(sl, M + 0.3, 4.55, cw - 0.6, 1.3, s["stat"]["label"], MIN_PT, "C9D2E6", align="ctr")
+        value_card(sl, t, M, 2.75, cw, 3.3, s["stat"], dark=False, big=54)
 
 
 def k_steps(sl, t, s, n, total):
@@ -236,9 +268,7 @@ def k_numbers(sl, t, s, n, total):
     for i, nm in enumerate(nums):
         x = W - M - cw - i * (cw + gap)
         top = 2.4 if s.get("risk") else 2.9
-        rect(sl, x, top, cw, 3.0 if s.get("risk") else 3.1, "1A2442", MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.05)
-        text(sl, x + 0.2, top + 0.2, cw - 0.4, 1.4, nm["value"], 44, "FFFFFF", bold=True, align="ctr", anchor="m")
-        text(sl, x + 0.2, top + 1.65, cw - 0.4, 1.2, nm["label"], MIN_PT, "C9D2E6", align="ctr")
+        value_card(sl, t, x, top, cw, 3.0 if s.get("risk") else 3.1, nm, dark=True)
     if s.get("risk"):
         rect(sl, M, 5.65, W - 2 * M, 1.15, "1A2442", MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.12)
         rect(sl, W - M - 0.12, 5.85, 0.12, 0.75, AMBER)
@@ -253,22 +283,30 @@ def k_formula(sl, t, s, n, total):
     items = []
     for i, term in enumerate(s["terms"]):
         if i:
-            items.append(("×", None))
-        items.append((term["value"], term["label"]))
-    items.append(("=", None))
-    items.append((s["result"]["value"], s["result"]["label"]))
-    boxes = [it for it in items if it[1] is not None]
+            items.append(("×", None, None))
+        items.append((term["value"], term["label"], term))
+    items.append(("=", None, None))
+    items.append((s["result"]["value"], s["result"]["label"], s["result"]))
+    boxes = [it for it in items if it[1] is not None]  # (value, label, item)
     ops = len(items) - len(boxes)
     opw = 0.55
     bw = (W - 2 * M - ops * opw) / len(boxes)
     x = W - M
-    for val, lab in items:
+    for val, lab, item in items:
         if lab is None:
             x -= opw
             text(sl, x, 3.2, opw, 1.0, val, 40, t.muted, bold=True, align="ctr", anchor="m")
             continue
         x -= bw
-        last = (val, lab) == boxes[-1]
+        last = (val, lab, item) == boxes[-1]
+        if missing(item):   # the formula still shows HOW the market is computed, without implying the numbers
+            box = rect(sl, x + 0.05, 2.8, bw - 0.1, 2.3, t.light, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.06,
+                       line="B9C1D3")
+            box.line.dash_style = MSO_LINE.DASH
+            text(sl, x + 0.15, 2.95, bw - 0.3, 1.0, lab, MIN_PT, t.ink, bold=True, align="ctr", anchor="m")
+            text(sl, x + 0.15, 4.0, bw - 0.3, 1.0, item.get("source_hint", "נתון לאיסוף"), MIN_PT, t.muted,
+                 align="ctr")
+            continue
         rect(sl, x + 0.05, 2.8, bw - 0.1, 2.3, t.dark if last else t.card, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.06)
         text(sl, x + 0.15, 2.95, bw - 0.3, 1.1, val, 30, "FFFFFF" if last else t.ink, bold=True, align="ctr",
              anchor="m")
@@ -343,8 +381,12 @@ def k_ask(sl, t, s, n, total):
     header(sl, t, s, n, total)
     half = (W - 2 * M - 0.5) / 2
     xr = W - M - half
-    text(sl, xr, 2.55, half, 0.5, "לאן הכסף הולך", MIN_PT, t.accent, bold=True)
-    y = 3.15
+    y0 = 2.55
+    if s.get("amount"):
+        text(sl, xr, y0, half, 0.55, f"**סכום הגיוס:** {s['amount']}", 28, t.ink)
+        y0 += 0.75
+    text(sl, xr, y0, half, 0.5, "לאן הכסף הולך", MIN_PT, t.accent, bold=True)
+    y = y0 + 0.6
     nums = [_num(u.get("pct")) for u in s["uses"]]
     real = all(v is not None for v in nums) and abs(sum(nums) - 100) < 0.5
     for u, v in zip(s["uses"], nums):
@@ -393,7 +435,8 @@ def k_finance(sl, t, s, n, total):
         steps = [f"{u.get('price_incl_vat')} ₪ ללקוח", f"{net} בלי מע\"מ",
                  f"סליקה: {u.get('after_fees', '[לאשר]')}", f"מס: {u.get('after_tax', '[לאשר]')}"]
         # "·" not an arrow: Heebo has no arrow glyphs (a fallback font would appear in the PDF)
-        text(sl, M + 0.25, y + 0.05, W - 2 * M - 0.5, 0.75, "  ·  ".join(steps), MIN_PT, "FFFFFF", anchor="m")
+        label = "דוגמת חישוב: " if u.get("example", True) else ""
+        text(sl, M + 0.25, y + 0.05, W - 2 * M - 0.5, 0.75, label + "  ·  ".join(steps), MIN_PT, "FFFFFF", anchor="m")
 
 
 def k_closing(sl, t, s, n, total):
@@ -408,8 +451,62 @@ def k_closing(sl, t, s, n, total):
 KINDS = {k[2:]: v for k, v in globals().items() if k.startswith("k_")}
 
 
+def collect_list(spec):
+    """Every data point the deck still needs, slide by slide: [לאשר] markers and missing hero numbers."""
+    import re as _re
+    rows = []
+    for n, sl in enumerate(spec["slides"], 1):
+        found = []
+        def walk(o, label=None):
+            if isinstance(o, dict):
+                if "label" in o and "value" in o and missing(o):
+                    found.append(f"{o['label']}" + (f" (יעד: {o['target']})" if o.get("target") else ""))
+                    return
+                for k, v in o.items():
+                    if k != "notes":
+                        walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+            elif isinstance(o, str):
+                found.extend(m.strip("[]").replace("לאשר:", "").strip() or "ערך" for m in _re.findall(r"\[לאשר[^\]]*\]", o))
+        walk(sl)
+        title = sl.get("headline") or sl.get("title", "")
+        title = title if isinstance(title, str) else " ".join(title)
+        for f in dict.fromkeys(found):
+            rows.append((n, sl.get("kicker", title), f))
+    return rows + [("-", "כללי", c) for c in spec.get("collect", [])]
+
+
+def write_collect(spec, out):
+    """Skeleton decks ship with a data-to-collect document (Word, RTL) next to the PPTX."""
+    import doc_build as D
+    d = D.new_doc()
+    D.para(d, f"{spec.get('title', 'מצגת')}: נתונים לאיסוף", size=16, bold=True, font=D.FONT_HEAD, after=2)
+    D.para(d, "המצגת היא שלד לעבודה: המבנה, המסרים והעיצוב מוכנים, והמספרים עוד לא. כל שורה כאן היא נתון שצריך "
+              "להביא, עם מקור, לפני שמציגים למשקיע.", size=11, color=D.MUTED, after=8, line=1.25)
+    rows = collect_list(spec)
+    t = d.add_table(rows=1, cols=3)
+    D.table_rtl(t)
+    D.table_borders(t)
+    D.cell_margins(t)
+    for i, h in enumerate(["שקף", "נושא", "מה צריך להביא"]):
+        D.cell_fill(t.rows[0].cells[i], "0E1630")
+        D.cell_text(t.rows[0].cells[i], h, size=10.5, bold=True, color="FFFFFF")
+    for n, topic, what in rows:
+        r = t.add_row().cells
+        D.cell_text(r[0], str(n), size=10.5, align="center")
+        D.cell_text(r[1], topic, size=10.5)
+        D.cell_text(r[2], what, size=10.5)
+    D.col_widths(t, [1.5, 4.0, 11.9])
+    path = os.path.splitext(out)[0] + "-data-to-collect.docx"
+    d.save(path)
+    return path, len(rows)
+
+
 def build(spec, out):
-    global MIN_PT
+    global MIN_PT, SKELETON
+    SKELETON = spec.get("status") == "skeleton"
     if spec.get("mode") == "send":
         MIN_PT = 16
     t = Theme(spec.get("brand", {}))
@@ -422,10 +519,14 @@ def build(spec, out):
         KINDS[s["kind"]](sl, t, s, n, total)
         notes(sl, s)
     prs.core_properties.title = spec.get("title", "")
-    if spec.get("sources"):
-        prs.core_properties.comments = json.dumps({"sources": spec["sources"]}, ensure_ascii=False)
+    meta = {k: spec[k] for k in ("sources", "supplied") if spec.get(k)}
+    if meta:
+        prs.core_properties.comments = json.dumps(meta, ensure_ascii=False)
     prs.core_properties.language = "he-IL"
     prs.save(out)
+    if spec.get("status") == "skeleton":
+        path, k = write_collect(spec, out)
+        print(f"Skeleton: {k} data points to collect -> {path}")
 
 
 def to_pdf(path):

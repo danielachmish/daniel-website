@@ -52,6 +52,7 @@
       <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
       <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="i-barcode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14M8 5v14M12 5v14M17 5v14M21 5v14"/></symbol>
       <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
     </defs>
   </svg>
@@ -61,7 +62,7 @@
       <a class="brand-logo" href="#top" aria-label="[שם העסק], לראש העמוד">
         <img src="assets/img/logo.svg" alt="[שם העסק]" width="160" height="32">
       </a>
-      <!-- בדף נחיתה: מעט קישורים. כל קישור הוא יציאה אפשרית מהמטרה. -->
+      <!-- דף נחיתה: רק קישורים לסקשנים בדף. כל קישור החוצה הוא יציאה מהמטרה (רף הסוכנות, סעיף 2). -->
       <nav class="site-nav" aria-label="ניווט ראשי">
         <ul role="list">
           <li><a href="#products">[מוצרים]</a></li>
@@ -69,6 +70,7 @@
           <li><a href="#faq">שאלות נפוצות</a></li>
         </ul>
       </nav>
+      <!-- אותו ניסוח בדיוק בכל כפתור בדף (Hero, אמצע, FAQ, טופס, כפתור דביק). בטלפון מוסתר: יש כפתור דביק. -->
       <div class="site-header__actions">
         <a class="btn" href="#signup">[הפעולה, 2–3 מילים]</a>
       </div>
@@ -76,17 +78,19 @@
   </header>
 
   <main id="main">
-    <!-- HERO: עונה תוך 5 שניות על "מה זה, למה לי, מה עושים". כותרת = תועלת, לא שם החברה. -->
+    <!-- HERO: תוך 5 שניות בטלפון 390×844 בלי גלילה: למי, הבטחה (תועלת, עד ~10 מילים), כפתור אחד, מוצר אמיתי.
+         בטלפון ה-CSS מסדר: שורת "למי" → כותרת → ויזואל → משפט משנה → כפתור → 3 עובדות. -->
     <section class="hero on-dark" id="top" aria-labelledby="hero-title">
       <div class="container hero__grid">
         <div class="hero__copy">
           <p class="eyebrow reveal">[למי זה: "לבעלי חנויות", "לעסקים בצפון"]</p>
-          <h1 class="hero__title reveal" id="hero-title" style="--i:1">[ההבטחה <span class="hl">במילים חזקות</span>]</h1>
-          <p class="hero__sub reveal" style="--i:2">[משפט משנה: איך מקיימים את ההבטחה, ולמה להאמין. עד 25 מילים.]</p>
+          <h1 class="hero__title reveal" id="hero-title" style="--i:1">[ההבטחה <span class="hl">במילים חזקות.</span>]</h1>
+          <p class="hero__sub reveal" style="--i:2">[משפט אחד: איך מקיימים את ההבטחה. עד ~20 מילים. שם מותג באנגלית: <bdi>NAME&nbsp;HERE</bdi>]</p>
           <div class="hero__ctas reveal" style="--i:3">
-            <a class="btn btn--lg" href="#signup" data-hero-cta>[הפעולה הראשית]
+            <a class="btn btn--lg" href="#signup" data-hero-cta>[הפעולה, 2–3 מילים]
               <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-            <a class="btn btn--lg btn--ghost" href="#products">[פעולה משנית]</a>
+            <!-- פעולה משנית = קישור טקסט שקט, לא כפתור שני שמתחרה -->
+            <a class="link-arrow" href="#products">[לקו המוצרים]</a>
           </div>
           <ul class="trust reveal" role="list" style="--i:4">
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> <span>[עובדה מאומתת 1]</span></li>
@@ -94,7 +98,7 @@
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> <span>[עובדה מאומתת 3]</span></li>
           </ul>
         </div>
-        <!-- ויזואל: מוצר אמיתי של הלקוח (חתוך מרקע), לא סטוק. 3 תמונות בקומפוזיציה. -->
+        <!-- ויזואל: מוצר אמיתי של הלקוח, חתוך מרקע (scripts/assets/product_cutout.py), לא סטוק. 3 תמונות. -->
         <div class="hero__visual" aria-hidden="true">
           <div class="slashes"><span></span><span></span><span></span></div>
           <div class="stack">
@@ -107,39 +111,72 @@
       <div class="hero__floor"></div>
     </section>
 
-    <!-- מוצרים / שירותים: אמיתיים, עם פרטים אמיתיים (מהאריזה, מהקטלוג). -->
+    <!-- מוצרים: אמיתיים, עם פרטים אמיתיים (מהאריזה, מהקטלוג). בטלפון: גלילה הצידה עם "הצצה" לכרטיס הבא. -->
     <section class="section section--tint" id="products" aria-labelledby="products-title">
       <div class="container">
         <div class="section__head">
           <p class="eyebrow">[קטגוריה]</p>
-          <h2 class="h2" id="products-title">[כותרת: מה יש לנו בשבילך]</h2>
+          <h2 class="h2" id="products-title">[כותרת: מה יש לנו בשבילכם.]</h2>
           <p class="lead">[משפט אחד שמחבר את המוצרים לתועלת]</p>
         </div>
         <ul class="rail" role="list" tabindex="0" aria-label="[רשימת מוצרים]">
           <li class="reveal"><article class="product">
             <div class="product__media"><img src="assets/img/placeholder-product.svg" alt="[שם מוצר]" width="300" height="560" loading="lazy" decoding="async"></div>
-            <h3 class="product__name">[שם מוצר]</h3>
+            <h3 class="product__name">[שם מוצר. אנגלית/מספרים בתוך <bdi>…</bdi>]</h3>
             <div class="chips"><span class="chip">[מפרט]</span><span class="chip">[מפרט]</span></div>
-            <p class="product__price"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg> [מחיר / "מחיר לעסקים אחרי הרשמה"]</p>
+            <p class="product__price"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg> [מחיר, או "מחיר לעסקים, אחרי הרשמה"]</p>
           </article></li>
-          <!-- לשכפל לכל מוצר -->
+          <!-- לשכפל לכל מוצר. הכרטיס האחרון: הפעולה -->
+          <li class="reveal"><article class="product product--cta on-dark">
+            <p class="eyebrow">[הקטלוג המלא]</p>
+            <h3 class="product__name">[משפט קצר שמוביל לפעולה.]</h3>
+            <a class="btn" href="#signup">[הפעולה, 2–3 מילים] <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+            <div class="product--cta__art" aria-hidden="true"><!-- 2–3 תמונות מוצר קטנות (150px) --></div>
+          </article></li>
         </ul>
         <p class="rail-hint"><svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-arrow"/></svg> גוללים הצידה לעוד</p>
       </div>
     </section>
 
-    <!-- יתרונות: 3–4. כל אחד = תועלת ללקוח, לא תכונה של החברה. -->
+    <!-- יתרונות: כל יתרון עם "סצנה" אמיתית קטנה (מוקאפ של המחיר/המק"ט/המסך), לא אייקון. -->
     <section class="section" aria-labelledby="why-title">
       <div class="container">
         <div class="section__head">
-          <p class="eyebrow">[למה אנחנו]</p>
-          <h2 class="h2" id="why-title">[כותרת יתרונות]</h2>
+          <p class="eyebrow">[מה מקבלים]</p>
+          <h2 class="h2" id="why-title">[כותרת יתרונות.]</h2>
         </div>
-        <div class="features">
-          <article class="feature reveal"><div class="feature__icon"><svg aria-hidden="true"><use href="#i-tag"/></svg></div><h3 class="h3">[יתרון 1]</h3><p>[הסבר קצר: מה זה נותן ללקוח]</p></article>
-          <article class="feature reveal" style="--i:1"><div class="feature__icon"><svg aria-hidden="true"><use href="#i-clock"/></svg></div><h3 class="h3">[יתרון 2]</h3><p>[הסבר]</p></article>
-          <article class="feature reveal" style="--i:2"><div class="feature__icon"><svg aria-hidden="true"><use href="#i-box"/></svg></div><h3 class="h3">[יתרון 3]</h3><p>[הסבר]</p></article>
+        <div class="features features--2">
+          <article class="feature reveal">
+            <div class="feature__visual" aria-hidden="true">
+              <div class="mini-card">
+                <img src="assets/img/placeholder-product.svg" alt="" width="96" height="180" loading="lazy" decoding="async">
+                <div><p class="mini-card__name">[שם מוצר]</p>
+                  <p class="mini-card__price"><span class="blur">₪ 00.00</span><span class="pill">[תווית]</span></p></div>
+              </div>
+            </div>
+            <h3 class="h3">[יתרון 1]</h3><p>[מה זה נותן ללקוח, במשפט אחד או שניים]</p></article>
+          <article class="feature reveal" style="--i:1">
+            <div class="feature__visual" aria-hidden="true">
+              <ul class="sku-list" role="list">
+                <li><span class="sku">[מק"ט אמיתי]</span><span class="nm">[שם אמיתי]</span></li>
+                <li><span class="sku">[מק"ט אמיתי]</span><span class="nm">[שם אמיתי]</span></li>
+                <li>[ועוד…]</li>
+              </ul>
+            </div>
+            <h3 class="h3">[יתרון 2]</h3><p>[הסבר]</p></article>
         </div>
+        <!-- רכיב החתימה הגדול: משהו שלא יתאים לאף עסק אחר (אצל ספק: קיר תצוגה; אצל מסעדה: המנה; אצל סטודיו: לפני/אחרי) -->
+        <article class="wall reveal" aria-labelledby="wall-title">
+          <div class="wall__copy">
+            <p class="eyebrow">[מותג]</p>
+            <h3 class="h2" id="wall-title">[ככה זה ייראה אצלכם.]</h3>
+            <p class="lead">[2 משפטים: התועלת המוחשית]</p>
+            <a class="btn" href="#signup">[הפעולה, 2–3 מילים] <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          </div>
+          <div class="wall__board" aria-hidden="true">
+            <div class="wall__row"><img src="assets/img/placeholder-product.svg" alt="" width="300" height="560" loading="lazy"><img src="assets/img/placeholder-product.svg" alt="" width="300" height="560" loading="lazy"><img src="assets/img/placeholder-product.svg" alt="" width="300" height="560" loading="lazy"></div>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -148,64 +185,82 @@
       <div class="container">
         <div class="section__head">
           <p class="eyebrow">איך זה עובד</p>
-          <h2 class="h2" id="how-title">[שלושה צעדים ו...]</h2>
+          <h2 class="h2" id="how-title">[שלושה צעדים, ו...]</h2>
         </div>
         <ol class="steps" role="list">
           <li class="step reveal"><div class="step__num">01</div><h3 class="h3">[צעד 1]</h3><p>[הסבר]</p></li>
-          <li class="step reveal" style="--i:1"><div class="step__num">02</div><h3 class="h3">[צעד 2]</h3><p>[הסבר]</p></li>
+          <li class="step reveal" style="--i:1"><div class="step__num">02</div><h3 class="h3">[צעד 2]</h3><p>[הסבר. זמן לא ידוע? <span class="tbc">זמן תגובה</span>]</p></li>
           <li class="step reveal" style="--i:2"><div class="step__num">03</div><h3 class="h3">[צעד 3]</h3><p>[הסבר]</p></li>
         </ol>
       </div>
     </section>
 
-    <!-- הוכחה חברתית: רק אמיתית. עד שמגיעה: בלוק מסומן "לאשר" (לא להמציא ציטוטים!). -->
-    <section class="section section--tint" aria-labelledby="proof-title">
+    <!-- שאלות נפוצות: ההתנגדויות האמיתיות. במחשב: כותרת + כפתור בצד, שאלות בצד השני. -->
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-layout">
+        <div class="section__head">
+          <p class="eyebrow">שאלות נפוצות</p>
+          <h2 class="h2" id="faq-title">[לפני ההרשמה.]</h2>
+          <p class="lead">[לא מצאתם תשובה? ...]</p>
+          <a class="btn" href="#signup">[הפעולה, 2–3 מילים] <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </div>
+        <div class="faq">
+          <details><summary>[שאלה]</summary><div class="answer"><p>[תשובה קצרה וישירה, או <span class="tbc">מה הלקוח צריך לאשר</span>]</p></div></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- הוכחה: רק אמיתית, ממש לפני הטופס. עד שמגיעה: מסומן "לאשר". אסור להמציא ציטוטים או מספרים. -->
+    <section class="section section--tint section--tight" aria-labelledby="proof-title">
       <div class="container">
         <div class="section__head">
           <p class="eyebrow">[לקוחות]</p>
-          <h2 class="h2" id="proof-title">[כותרת הוכחה]</h2>
+          <h2 class="h2" id="proof-title">[כותרת הוכחה.]</h2>
         </div>
-        <div class="quotes">
+        <div class="proof">
           <figure class="quote tbc-block reveal"><span class="tbc-tag">לאשר: ציטוט אמיתי</span>
-            <blockquote><p>[ציטוט אמיתי של לקוח, במילים שלו]</p></blockquote>
-            <figcaption><span class="avatar" aria-hidden="true">?</span><span>[שם, תפקיד, עסק, עיר]</span></figcaption>
+            <blockquote><p>[ציטוט קצר של לקוח אמיתי, במילים שלו]</p></blockquote>
+            <figcaption>[שם, עסק, עיר]</figcaption>
           </figure>
+          <div class="stats tbc-block reveal" style="--i:1; border-radius: var(--r-lg); padding: var(--space-5) var(--space-4) var(--space-4);"><span class="tbc-tag">לאשר: נתונים אמיתיים</span>
+            <div class="stat"><p class="stat__label">[מדד 1]: <span class="tbc">מספר</span></p></div>
+            <div class="stat"><p class="stat__label">[מדד 2]: <span class="tbc">מספר</span></p></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- שאלות נפוצות: ההתנגדויות האמיתיות לפני הפעולה -->
-    <section class="section" id="faq" aria-labelledby="faq-title">
-      <div class="container">
-        <div class="section__head section__head--center">
-          <p class="eyebrow">שאלות נפוצות</p>
-          <h2 class="h2" id="faq-title">[לפני שנרשמים]</h2>
-        </div>
-        <div class="faq">
-          <details><summary>[שאלה]</summary><div class="answer"><p>[תשובה קצרה וישירה]</p></div></details>
-        </div>
-      </div>
-    </section>
-
-    <!-- הפעולה: טופס קצר. כל שדה מיותר מוריד המרות. -->
+    <!-- הפעולה: בטלפון הטופס מגיע מיד אחרי הכותרת, וה"למה" אחריו. כל שדה מיותר מוריד המרות. -->
     <section class="section section--dark" id="signup" aria-labelledby="signup-title">
       <div class="container signup">
-        <div>
+        <div class="signup__head">
           <p class="eyebrow">[הפעולה]</p>
-          <h2 class="h2" id="signup-title">[כותרת: מה מקבלים כשממלאים]</h2>
+          <h2 class="h2" id="signup-title">[מה מקבלים כשממלאים.]</h2>
           <p class="lead">[משפט הרגעה: כמה זמן, מה קורה אחר כך]</p>
+        </div>
+        <div class="signup__extra">
           <ul class="checklist" role="list">
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> <span>[מה מקבלים 1]</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> <span>[מה מקבלים 2]</span></li>
           </ul>
+          <div class="vendor">
+            <div class="vendor__img" aria-hidden="true"><img src="assets/img/placeholder-product.svg" alt="" width="150" height="280" loading="lazy"></div>
+            <div>
+              <h3>[שם העסק המשפטי]</h3>
+              <p>[מי אתם במשפט]</p>
+              <ul role="list"><li>מעדיפים לדבר? <span class="tbc">טלפון / WhatsApp</span></li></ul>
+            </div>
+          </div>
         </div>
 
         <div class="form-card">
           <h3>[כותרת הטופס]</h3>
           <p class="form-intro">שדות עם <span aria-hidden="true">*</span><span class="visually-hidden">כוכבית</span> הם חובה.</p>
           <!-- action: /api/lead (Cloudflare Pages Function) או כתובת Formspree/Web3Forms.
-               data-demo="true" = מצב תצוגה בלי שרת. להסיר לפני עלייה לאוויר. -->
-          <form class="form" id="lead-form" action="/api/lead" method="post" novalidate data-lead-form data-demo="true">
+               data-demo="true" = מצב תצוגה בלי שרת. להסיר לפני עלייה לאוויר (qa_web מזהיר).
+               data-fallback-href: דרך חלופית כשהשליחה נכשלת (tel: / https://wa.me/972...). -->
+          <form class="form" id="lead-form" action="/api/lead" method="post" novalidate data-lead-form data-demo="true"
+                data-msg-fail="השליחה לא הצליחה. בדקו את החיבור ונסו שוב." data-fallback-href="#contact" data-fallback-label="לפרטי התקשרות">
             <div class="form__row form__row--2">
               <div class="field">
                 <label for="f-name">שם מלא<span class="req" aria-hidden="true">*</span></label>
@@ -216,31 +271,32 @@
               <div class="field">
                 <label for="f-phone">טלפון נייד<span class="req" aria-hidden="true">*</span></label>
                 <input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required data-validate data-rule="phoneIL"
-                       placeholder="050-0000000" aria-describedby="f-phone-err"
+                       aria-describedby="f-phone-err"
                        data-msg-required="נא לכתוב מספר טלפון" data-msg-invalid="המספר לא נראה תקין. לדוגמה: 050-1234567">
                 <p class="field__error" id="f-phone-err" aria-live="polite"></p>
               </div>
             </div>
+            <!-- לעסקים: שם העסק (autocomplete="organization") + ח.פ. (data-rule="bizId", inputmode="numeric"). ראו README. -->
             <div class="field">
               <label for="f-email">אימייל <span class="opt">(רשות)</span></label>
               <input id="f-email" name="email" type="email" autocomplete="email" data-validate data-rule="email"
                      aria-describedby="f-email-err" data-msg-invalid="כתובת האימייל לא נראית תקינה">
               <p class="field__error" id="f-email-err" aria-live="polite"></p>
             </div>
+            <!-- הסכמה לדיוור: לא מסומנת מראש, ונפרדת מהשליחה -->
             <label class="check"><input type="checkbox" name="marketing_consent" value="yes"> [אשמח לקבל עדכונים ומבצעים. אפשר להסיר בכל רגע.]</label>
-            <!-- מלכודת בוטים: אדם לא רואה את השדה הזה -->
             <div class="hp" aria-hidden="true"><label for="f-hp">אתר החברה</label><input id="f-hp" name="company_website" type="text" tabindex="-1" autocomplete="off"></div>
             <input type="hidden" name="_started"><input type="hidden" name="utm_source"><input type="hidden" name="utm_medium"><input type="hidden" name="utm_campaign"><input type="hidden" name="utm_content"><input type="hidden" name="gclid"><input type="hidden" name="fbclid">
             <p class="form-status" role="alert" tabindex="-1"></p>
-            <button class="btn btn--lg btn--block" type="submit">[שליחה: פועל + תוצאה]</button>
-            <p class="legal">הפרטים ישמשו ליצירת קשר בנוגע לפנייה. <a href="privacy.html">מדיניות פרטיות</a>.</p>
+            <button class="btn btn--lg btn--block" type="submit">[הפעולה, 2–3 מילים] <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+            <p class="legal">הפרטים ישמשו ליצירת קשר בנוגע לפנייה. <a href="privacy.html">מדיניות פרטיות</a></p>
           </form>
         </div>
         <template id="form-success">
           <div class="form-success">
             <div class="form-success__icon"><svg aria-hidden="true"><use href="#i-check"/></svg></div>
-            <h3>[תודה! מה קורה עכשיו]</h3>
-            <p>[מתי וממי הם ישמעו]</p>
+            <h3>[קיבלנו. מה קורה עכשיו]</h3>
+            <p>[מתי וממי ישמעו. זמן לא ידוע? <span class="tbc">זמן תגובה</span>]</p>
           </div>
         </template>
       </div>
@@ -252,18 +308,18 @@
       <div class="site-footer__grid">
         <div>
           <img src="assets/img/logo.svg" alt="[שם העסק]" width="160" height="32" loading="lazy">
-          <p style="margin-top:var(--space-4)">[שם משפטי של העסק, ח.פ., כתובת]</p>
+          <p class="footer-about">[שם משפטי של העסק, ח.פ., כתובת]</p>
         </div>
-        <div><h2>יצירת קשר</h2><ul role="list"><li><a href="tel:+972000000000"><bdi>[טלפון]</bdi></a></li><li><a href="mailto:info@example.co.il">[אימייל]</a></li></ul></div>
+        <div id="contact"><h2>יצירת קשר</h2><ul role="list"><li><a href="tel:+972000000000"><bdi>[טלפון]</bdi></a></li><li><a href="mailto:info@example.co.il">[אימייל]</a></li></ul></div>
         <div><h2>מידע</h2><ul role="list"><li><a href="accessibility.html">הצהרת נגישות</a></li><li><a href="privacy.html">מדיניות פרטיות</a></li></ul></div>
       </div>
       <div class="site-footer__bottom"><p>© <span data-year>2026</span> [שם העסק]. כל הזכויות שמורות.</p></div>
     </div>
   </footer>
 
-  <!-- כפתור דביק לטלפון: מופיע אחרי ה-Hero ונעלם ליד הטופס -->
+  <!-- כפתור דביק בטלפון: מופיע כשכפתור ה-Hero יוצא מהמסך, נעלם כשמגיעים לטופס -->
   <div class="sticky-cta" aria-hidden="true">
-    <a class="btn" href="#signup" tabindex="-1">[הפעולה הראשית]</a>
+    <a class="btn" href="#signup" tabindex="-1">[הפעולה, 2–3 מילים] <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
   </div>
 
   <script src="assets/js/site.js" defer></script>

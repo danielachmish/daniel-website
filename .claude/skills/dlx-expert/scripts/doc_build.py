@@ -306,9 +306,16 @@ def bullets(d, items, brand, size=10.5, after=1.5, indent=0.4, keep=True):
 
 
 def set_sources(d, spec):
-    """Store the spec's sources in the file so qa_text.py can accept sourced claims."""
-    if spec.get("sources"):
-        d.core_properties.comments = json.dumps({"sources": spec["sources"]}, ensure_ascii=False)
+    """Store the spec's sources and the facts the CLIENT supplied in the file, so qa_text.py can tell a sourced
+    claim or a supplied phone/address from an invented one."""
+    meta = {k: spec[k] for k in ("sources", "supplied") if spec.get(k)}
+    if meta:
+        d.core_properties.comments = json.dumps(meta, ensure_ascii=False)
+
+
+LEGAL_DISCLAIMER = ("זה לא ייעוץ משפטי. המכתב הוא טיוטה שהוכנה לפי המידע שמסרת. לפני הגשה, ובמיוחד כשיש סכום גבוה, "
+                    "נקודות, או כשהבקשה נדחית ושוקלים בקשה להישפט, כדאי להתייעץ עם עו\"ד בתחום (או לפנות לסיוע "
+                    "המשפטי של משרד המשפטים אם יש זכאות).")
 
 
 # ---------------------------------------------------------------- CV (1 page, ATS-safe: single column, no tables)
@@ -419,6 +426,9 @@ def build_quote(spec, out):
         panel(d, "היעד שנמדוד", spec["goal"] if isinstance(spec["goal"], list) else [spec["goal"]], brand)
     if spec.get("proof"):
         panel(d, "עבודות דומות", spec["proof"], brand, size=10)
+    if spec.get("packages"):  # optional anchor: lean vs full, so the client compares options, not "yes/no"
+        panel(d, "שתי דרכים לעשות את זה", [f"**{pk['name']}: {pk['price']}.** {pk['what']}" for pk in spec["packages"]],
+              brand, size=10.5)
 
     section_title(d, "מה כלול", brand, before=8)
     hdr = ["#", "תיאור", "כמות", "מחיר יחידה", "סה\"כ"]
@@ -521,6 +531,21 @@ def build_letter(spec, out):
     para(d, spec.get("opening", "שלום רב,"), size=11, after=6)
     if spec.get("summary"):
         para(d, spec["summary"], size=11, bold=True, after=8, line=1.3)
+    # annexes are lettered in the order they are first cited (א' is the first one the reader meets)
+    atts = spec.get("attachments", [])
+    if atts and isinstance(atts[0], dict):
+        cited = []
+        for blk in spec["body"]:
+            if isinstance(blk, dict) and blk.get("annex") and blk["annex"] not in cited:
+                cited.append(blk["annex"])
+        order = cited + [a["id"] for a in atts if a["id"] not in cited]
+        by_id = {a["id"]: a["text"] for a in atts}
+        letter_of = {aid: chr(0x05D0 + i) for i, aid in enumerate(order)}
+        atts = [by_id[aid] for aid in order]
+    else:
+        letter_of = {}
+    if not spec.get("legal_basis") or PLACEHOLDER_RE.sub("", spec["legal_basis"]).strip() == "":
+        print("WARN: no researched legal basis - search the regulation/bylaw/ruling before sending (documents-writing.md)")
     n = 0
     for blk in spec["body"]:
         if isinstance(blk, dict) and blk.get("heading"):
@@ -528,7 +553,7 @@ def build_letter(spec, out):
             continue
         text = blk["text"] if isinstance(blk, dict) else blk
         if isinstance(blk, dict) and blk.get("annex"):
-            text = text.rstrip(".") + f" (נספח {blk['annex']}')."
+            text = text.rstrip(".") + f" (נספח {letter_of.get(blk['annex'], blk['annex'])}')."
         n += 1
         bp = para(d, "", size=11, after=5, line=1.3)  # ragged: justified Hebrew opens wide gaps
         bp.paragraph_format.right_indent = Cm(0.6)
@@ -542,10 +567,10 @@ def build_letter(spec, out):
         border(rp, "right", color=brand, sz=18, space=8)
     if spec.get("deadline_line"):
         para(d, spec["deadline_line"], size=10, color=MUTED, after=8, line=1.25)
-    if spec.get("attachments"):
+    if atts:
         para(d, "נספחים:", size=10.5, bold=True, before=4, after=2, keep_next=True)
-        for i, a in enumerate(spec["attachments"]):
-            para(d, f"{chr(0x05D0 + i)}'.  {a}", size=10.5, after=1, keep_next=i < len(spec["attachments"]) - 1)
+        for i, a in enumerate(atts):
+            para(d, f"{chr(0x05D0 + i)}'.  {a}", size=10.5, after=1, keep_next=i < len(atts) - 1)
     # Hebrew letter convention: the closing block sits on the end (visual left) side, signature line above name
     para(d, spec.get("closing", "בכבוד רב,"), size=11, before=14, after=22, keep_next=True, align="end")
     sig = para(d, " ", size=11, after=1, keep_next=True, align="end")
@@ -570,11 +595,15 @@ def build_checklist(spec, out):
     for title, key in (("המועד ומקורו", "deadline"), ("איך מגישים", "channel"), ("הוכחת שליחה", "proof"),
                        ("מעקב", "follow_up"), ("אם הבקשה נדחית", "if_rejected"), ("לפני ששולחים", "before_sending")):
         if sub.get(key):
-            section_title(d, title, brand)
+            section_title(d, title, brand)  # noqa
             items = sub[key] if isinstance(sub[key], list) else [sub[key]]
             boxes = [("☐  " + x) for x in items] if key in ("before_sending", "proof") else items
             for k, x in enumerate(boxes):
                 para(d, x, size=11, after=3, line=1.25, keep_next=k < len(boxes) - 1)
+    # every legal document's checklist carries the disclaimer and the lawyer referral (qa_text.py checks it)
+    section_title(d, "חשוב לדעת", brand)
+    for k, x in enumerate([LEGAL_DISCLAIMER] + sub.get("legal_notes", [])):
+        para(d, x, size=11, after=3, line=1.25, keep_next=k < len(sub.get("legal_notes", [])))
     if sub.get("sources"):
         section_title(d, "מקורות", brand)
         for x in sub["sources"]:
@@ -625,7 +654,7 @@ def build(spec, out, scale):
 
 def fit(spec, out):
     """Render and adjust SCALE: a CV grows (from 10.5pt body upward) to fill its one page; a multi-page document
-    never ends on a half-empty page: first try to pull the tail back (down to 0.92), else grow to fill it."""
+    never ends on a half-empty page: first try to pull the tail back (down to 0.95), else grow to fill it."""
     def run(sc):
         build(spec, out, sc)
         return pdf_layout(to_pdf(out))
@@ -642,7 +671,7 @@ def fit(spec, out):
         return best, pages, fill
     pages, fill = run(1.0)
     if pages > 1 and fill is not None and fill < 0.4:
-        for sc in (0.97, 0.94, 0.92):
+        for sc in (0.97, 0.95):            # never below 95%: body text stays readable
             p2, f2 = run(sc)
             if p2 < pages:
                 return sc, p2, f2
