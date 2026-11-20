@@ -238,9 +238,13 @@ def literal_tricks(f):
             if re.fullmatch(r"-?\d+(\.\d+)?%?", inner):
                 prev = toks[k - 1] if k else None
                 nxt = toks[k + 1] if k + 1 < len(toks) else None
-                if (prev is not None and prev.type == "OPERATOR-INFIX" and prev.value in "+-*/^") or \
-                   (nxt is not None and nxt.type == "OPERATOR-INFIX" and nxt.value in "+-*/^"):
+                if (prev is not None and prev.type in ("OPERATOR-INFIX", "OPERATOR-PREFIX") and prev.value in "+-*/^") or \
+                   (nxt is not None and nxt.type == "OPERATOR-INFIX" and nxt.value in "+-*/^") or \
+                   (prev is not None and prev.type == "FUNC" and prev.value.upper() in ("VALUE(", "N(", "NUMBERVALUE(", "INT(", "ABS(")):
                     out.append(f'number hidden in a string {t.value}')
+        if t.type == "FUNC" and t.value.upper() in ("COLUMNS(", "ROWS(") and k + 1 < len(toks) and \
+           toks[k + 1].type == "OPERAND" and toks[k + 1].subtype == "RANGE" and "$" in toks[k + 1].value:
+            out.append(f"constant counted from a fixed range {t.value}{toks[k + 1].value})")
         if t.type == "OPERAND" and t.subtype == "NUMBER" and k + 2 < len(toks):
             if toks[k + 1].type == "OPERATOR-INFIX" and toks[k + 1].value in "+-*/^" and \
                toks[k + 2].type == "OPERAND" and toks[k + 2].subtype == "NUMBER":
@@ -478,6 +482,24 @@ def main():
         check_sheets = {sh for sh, _, _ in check_cells}
         cand = [(sh, row, cells) for (sh, row), cells in rowmap.items()
                 if sh not in check_sheets and len(cells) >= 3 and wf[sh].sheet_state == "visible"]
+        # single named result cells (dashboard KPIs) must be guarded too
+        for n_, d_ in names.items():
+            try:
+                dest = list(d_.destinations)
+            except Exception:
+                continue
+            if len(dest) == 1 and ":" not in dest[0][1] and not n_.startswith("QA_") and dest[0][0] in wf.sheetnames:
+                sh_, co_ = dest[0][0], dest[0][1].replace("$", "")
+                cell_ = wf[sh_][co_]
+                if isinstance(cell_.value, str) and cell_.value.startswith("=") and sh_ not in check_sheets:
+                    cand.append((sh_, cell_.row, [(cell_.column, None, cell_.value, co_)]))
+        # the hidden-copy check (QA_ShadowCheck) only proves "nobody edited a cell"; coverage must come from the others
+        shadow = set()
+        if "QA_ShadowCheck" in names:
+            for sh_, co_ in names["QA_ShadowCheck"].destinations:
+                c1, r1, c2, r2 = range_boundaries(co_.replace("$", ""))
+                shadow.add((sh_, r1, c1))
+        judge = [x for x in check_cells if x not in shadow]
         cand.sort(key=lambda t: (wf.sheetnames.index(t[0]), t[1]))
         if opts["mutate"] > 0 and opts["mutate"] < len(cand):
             k = opts["mutate"]
@@ -503,7 +525,7 @@ def main():
             if not saved:
                 return None
             wmv = openpyxl.load_workbook(mp, data_only=True)
-            return any(wmv[csh].cell(row=r, column=cc).value is not True for csh, r, cc in check_cells)
+            return any(wmv[csh].cell(row=r, column=cc).value is not True for csh, r, cc in judge)
         with ThreadPoolExecutor(max_workers=len(workers)) as ex:
             # one job per worker at a time: a LibreOffice profile cannot serve two documents at once
             res = []
@@ -515,12 +537,13 @@ def main():
         n = len(caught) + len(missed)
         if n:
             if missed and not opts.get("mutate_warn"):
-                F(f"mutation test: {len(missed)}/{n} calculation rows can be corrupted and every model check stays TRUE "
-                  "(add an independent check that covers them): " + " | ".join(missed[:8]))
+                F(f"mutation test: {len(missed)}/{n} calculation rows / named results can be corrupted and every INDEPENDENT "
+                  "model check stays TRUE (the hidden-copy check does not count): " + " | ".join(missed[:10]))
             elif missed:
                 W(f"mutation test (--mutate-warn): checks miss {len(missed)}/{n} rows: " + " | ".join(missed[:8]))
             else:
-                P(f"mutation test: corrupted one cell in each of {n} calculation rows; the model's checks caught every one")
+                P(f"mutation test: corrupted one cell in each of {n} calculation rows and named results; independent checks "
+                  f"(not counting the hidden copy) caught every one")
         shutil.rmtree(mdir, ignore_errors=True)
 
     # ---- inputs styled distinctly ----

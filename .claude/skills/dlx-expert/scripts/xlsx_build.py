@@ -313,7 +313,11 @@ class Builder:
         self.ws_calcs = ws
 
     def fill_row(self, ws, item, r):
-        ws.cell(row=r, column=LABEL_COL, value=item["label"]).font = TOTAL_FONT if item.get("bold") else CALC_FONT
+        lc = ws.cell(row=r, column=LABEL_COL, value=item["label"])
+        lc.font = TOTAL_FONT if item.get("bold") else CALC_FONT
+        if len(item["label"]) > 48:
+            lc.alignment = Alignment(wrap_text=True, vertical="top")
+            ws.row_dimensions[r].height = 30
         ws.cell(row=r, column=UNIT_COL, value=item.get("unit", "")).font = SUB_FONT
         fmt = FORMATS.get(item.get("format", "money"), item.get("format"))
         first = item.get("first")
@@ -353,6 +357,10 @@ class Builder:
             ws.cell(row=r, column=1, value=k["label"]).font = Font(name=FONT, size=12)
             c = ws.cell(row=r, column=TOTAL_COL)
             deferred.append((c, k["formula"]))   # translated after the table rows exist (KPIs may read them)
+            if k.get("name"):                    # a named KPI can be cross-checked (and is mutation-tested by qa_xlsx)
+                if not NAME_RE.match(k["name"]) or CELLISH.match(k["name"]):
+                    die(f"bad KPI name {k['name']}")
+                self.wb.defined_names[k["name"]] = DefinedName(k["name"], attr_text=f"{qs(ws.title)}!$C${r}")
             c.font = KPI_FONT
             c.number_format = FORMATS.get(k.get("format", "money"), k.get("format"))
             c.alignment = Alignment(horizontal="center")
@@ -408,6 +416,8 @@ class Builder:
                     ws.merge_cells(start_row=tr_, start_column=1, end_row=tr_, end_column=FIRST_PERIOD_COL + self.n - 1)
                     tc.alignment = Alignment(horizontal="right", readingOrder=2)
                     last_row = tr_
+                    # (a chart title linked to this cell renders as "Chart Title" in LibreOffice, so the static
+                    # title names the lines and the conclusion line sits right above the chart)
                 chart.height, chart.width = 8, 26
                 chart.y_axis.numFmt = '₪#,##0'
                 for rr in rows:
@@ -440,13 +450,18 @@ class Builder:
         r = 4
         first = r
         for chk in self.spec.get("checks", []) + ([self.shadow_check] if self.shadow_check else []):
-            ws.cell(row=r, column=1, value=chk["label"]).font = CALC_FONT
+            lc = ws.cell(row=r, column=1, value=chk["label"])
+            lc.font = CALC_FONT
+            lc.alignment = Alignment(wrap_text=True, vertical="top")
+            ws.row_dimensions[r].height = 15 * (1 + len(chk["label"]) // 85)
             c = ws.cell(row=r, column=TOTAL_COL, value=self.tr(chk["formula"], ws.title))
             c.font, c.alignment = TOTAL_FONT, Alignment(horizontal="center")
             r += 1
         last = r - 1
         if last < first:
             die("at least one check is required (FAST: build the checks with the model)")
+        if self.shadow_check:
+            self.wb.defined_names["QA_ShadowCheck"] = DefinedName("QA_ShadowCheck", attr_text=f"{qs(ws.title)}!$C${last}")
         rng = f"{qs(ws.title)}!$C${first}:$C${last}"
         self.wb.defined_names["QA_Checks"] = DefinedName("QA_Checks", attr_text=rng)
         r += 1
