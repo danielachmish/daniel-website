@@ -2,7 +2,8 @@
 // slide and the brand's slanted bars straddle each slide edge, so swiping feels like one object.
 // Every slide has the logo, an eyebrow, a counter and (except the last) a "next" cue. Vary the slide kinds:
 //   cover:   {eyebrow, headline:[..], products:[..] (middle = hero), sub}
-//   overlap: {eyebrow, title, items:[{product, spec, name}] x2}  first item in front, second behind (depth)
+//   overlap: {eyebrow, title, sub?, items:[{product, spec, name}] x2}  first item in front (hero), second behind
+//   range:   {eyebrow, title, items:[{product, spec, name}] x3-4}  same-scale line-up, a label under each
 //   compare: {eyebrow, title, items:[{product, spec, name, weight}] x2}  numeral size follows weight (e.g. watts)
 //   number:  {eyebrow, value, label, product}   one giant number as the hero
 //   cta:     {headline:[..], cta, contact:[..], products:[..]}
@@ -36,14 +37,22 @@ export default (ctx) => {
     if (s.kind === 'cover') {
       body = `${head(s.eyebrow)}
         <h1 data-role="headline" class="hl" style="position:absolute;top:${T + 100}px;right:${R}px;left:${L}px">${lines(s.headline)}</h1>
-        ${lineup(ctx, s.products || [], {x0: L + 10, x1: W - R - 10, bottom: shelf, h: 480, heroH: 560, dimOthers: 0.9})}
-        ${s.sub ? `<div class="sub" data-role="text" style="position:absolute;top:${shelf + 64}px;right:${R}px;left:${L}px;text-align:center">${rich(s.sub)}</div>` : ''}`;
+        ${lineup(ctx, s.products || [], {x0: L + 10, x1: W - R - 10, bottom: shelf, h: 520, dimOthers: 0.88})}
+        ${s.sub ? `<div class="sub" data-role="text" style="position:absolute;top:${shelf + 64}px;right:${R}px;left:${L}px">${rich(s.sub)}</div>` : ''}`;
     } else if (s.kind === 'overlap') {
       const [a, b] = s.items;
       body = `${head(s.eyebrow)}${title(s.title)}${subline}
-        ${product(ctx, b.product, {h: 540, cx: W * 0.31, bottom: shelf, reflect: false, z: 2, dim: 0.92})}
-        ${product(ctx, a.product, {h: 600, cx: W * 0.67, bottom: shelf, reflect: false, z: 3})}
-        ${label(b, W * 0.29, 64)}${label(a, W * 0.69, 64)}`;
+        ${product(ctx, b.product, {h: 600, cx: W * 0.36, bottom: shelf - 26, reflect: false, z: 2, dim: 0.8})}
+        ${product(ctx, a.product, {h: 600, cx: W * 0.62, bottom: shelf, reflect: false, z: 3})}
+        ${label(b, W * 0.25, 60)}${label(a, W * 0.69, 84)}`;
+    } else if (s.kind === 'range') {
+      const k = s.items.length; const h = k > 3 ? 400 : 480;
+      const ws = s.items.map((it) => h * ctx.dim(it.product).w / ctx.dim(it.product).h);
+      const gap = (W - L - R - ws.reduce((p, q) => p + q, 0)) / (k + 1); let x = W - R - gap; // RTL: first item on the right
+      body = `${head(s.eyebrow)}${title(s.title)}${subline}` + s.items.map((it, j) => { const cx = x - ws[j] / 2; x -= ws[j] + gap;
+        return `${product(ctx, it.product, {h, cx, bottom: shelf, reflect: false, z: 3})}
+          <div style="position:absolute;top:${shelf + 30}px;left:${Math.round(cx - 120)}px;width:240px;text-align:center">
+            <div class="iv" dir="ltr" style="font-size:64px">${esc(it.spec)}</div>${it.name ? `<div class="in" data-role="text" style="font-size:32px">${rich(it.name)}</div>` : ''}</div>`; }).join('');
     } else if (s.kind === 'compare') {
       const [a, b] = s.items; const mx = Math.max(a.weight || 1, b.weight || 1);
       // the stronger item is the hero: bigger, in front; numerals share one baseline
@@ -62,7 +71,7 @@ export default (ctx) => {
       body = `<div style="position:absolute;top:${T + 60}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${logo(ctx, {h: 64})}</div>
         <h1 data-role="headline" class="hl" style="position:absolute;top:${T + 180}px;right:${R}px;left:${L}px;text-align:center">${lines(s.headline)}</h1>
         <div style="position:absolute;top:${T + 420}px;left:${L}px;right:${R}px;display:flex;justify-content:center">${cta(s.cta || '', {size: 46})}</div>
-        ${lineup(ctx, s.products || [], {x0: L, x1: W - R, bottom: shelf, h: 330, heroH: 400, dimOthers: 0.88})}
+        ${lineup(ctx, s.products || [], {x0: L + 40, x1: W - R - 40, bottom: shelf, h: 360, dimOthers: 0.88})}
         <div class="contact" style="position:absolute;top:${shelf + 40}px;left:${L}px;right:${R}px">${(s.contact || []).map((c) => `<div data-role="text" dir="ltr">${esc(c)}</div>`).join('')}</div>`;
     }
     return `<div class="canvas slide" style="left:${i * W}px;background:transparent"><div class="layer">${body}${foot}</div></div>`;

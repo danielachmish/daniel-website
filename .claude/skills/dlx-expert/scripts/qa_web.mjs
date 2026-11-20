@@ -240,11 +240,12 @@ try {
     }, { VPW: vp.width, phone: vp.width < 700 });
 
     // review/: screen-by-screen frames exactly as a visitor sees them (sticky bars included). Hand THESE to the critic.
-    if (vp.name === 'phone390' || vp.name === 'desktop1440') {
+    {
       const RV = path.join(OUT, 'review'); fs.mkdirSync(RV, { recursive: true });
       const total = await page.evaluate(() => document.documentElement.scrollHeight);
+      const cap = (vp.name === 'phone390' || vp.name === 'desktop1440') ? 18 : 5; // 360/768: first screens only
       let n = 0;
-      for (let y = 0; y < total && n < 18; y += Math.round(vp.height * 0.85), n++) {
+      for (let y = 0; y < total && n < cap; y += Math.round(vp.height * 0.85), n++) {
         await page.evaluate(yy => window.scrollTo({ top: yy, behavior: 'instant' }), y);
         await page.waitForTimeout(450);
         await page.screenshot({ path: path.join(RV, `${vp.name}_${String(n + 1).padStart(2, '0')}.png`) });
@@ -382,6 +383,13 @@ try {
       if (r && r.same) noFocus.push(r.name);
     }
     noFocus.length ? fail(`${D} no visible focus indicator on: ${noFocus.slice(0, 4).join(', ')}`) : pass(`${D} visible focus on keyboard Tab`);
+    { // evidence for the critic: keyboard focus on the first call-to-action button
+      await page.evaluate(() => { const b = document.querySelector('main .btn, main a[href^="#"], main button'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'instant' }); } });
+      await page.keyboard.press('Tab'); await page.evaluate(() => { const b = document.querySelector('main .btn, main button'); if (b) b.focus(); });
+      await page.waitForTimeout(250);
+      fs.mkdirSync(path.join(OUT, 'review'), { recursive: true });
+      await page.screenshot({ path: path.join(OUT, 'review', 'state_keyboard_focus_desktop.png') });
+    }
 
     if (axeSource) {
       await page.addScriptTag({ content: axeSource });
@@ -420,6 +428,30 @@ try {
       else if (r.invalid || r.msgs) pass(`empty submit shows ${r.msgs || r.invalid} error message(s)${r.focusInForm ? ', focus moved to first error' : ''} (${shot})`);
       else pass('empty submit blocked by browser validation (consider custom Hebrew messages)');
       if ((r.invalid || r.msgs) && !r.focusInForm) warn('after a failed submit, focus does not move to the first invalid field');
+      fs.mkdirSync(path.join(OUT, 'review'), { recursive: true });
+      fs.copyFileSync(shot, path.join(OUT, 'review', 'state_form_errors_phone.png'));
+      // fill with plausible test data and submit: the visitor must see a clear success OR a human error with a fallback
+      await page.evaluate((sel) => {
+        const f = document.querySelector(sel);
+        const val = (el) => { const n = (el.name + ' ' + el.id + ' ' + (el.autocomplete || '')).toLowerCase();
+          if (el.type === 'email') return 'test@example.com'; if (el.type === 'tel' || /phone|tel/.test(n)) return '050-1234567';
+          if (/biz|vat|company_id|hp|osek/.test(n) || el.inputMode === 'numeric') return '515555555'; if (/city|level2/.test(n)) return 'חיפה';
+          if (el.type === 'number') return '1'; return 'בדיקה אוטומטית'; };
+        for (const el of f.querySelectorAll('input, select, textarea')) {
+          if (el.closest('.hp') || ['hidden', 'submit', 'button'].includes(el.type) || el.tabIndex === -1) continue;
+          if (el.type === 'checkbox' || el.type === 'radio') { if (el.required) el.checked = true; continue; }
+          if (el.tagName === 'SELECT') { if (el.required && el.options.length > 1) el.selectedIndex = 1; continue; }
+          el.value = val(el); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('blur'));
+        }
+        const st = f.querySelector('input[name="_started"]'); if (st) st.value = String(Date.now() - 10000);
+      }, formSel);
+      await page.locator(`${formSel} [type=submit]`).first().click().catch(() => {});
+      await page.waitForTimeout(2500);
+      const after = await page.evaluate(() => { const t = document.body.innerText; return { success: /תודה|קיבלנו|נשלח|received|thank/i.test(t), err: [...document.querySelectorAll('[role=alert], .form-status')].map(e => e.textContent.trim()).filter(Boolean).join(' ') }; });
+      await page.screenshot({ path: path.join(OUT, 'review', 'state_form_submitted_phone.png') });
+      if (after.success) pass('valid submit shows a success message (state_form_submitted_phone.png)');
+      else if (after.err) warn(`valid submit shows an error (backend not connected?): "${after.err.slice(0, 80)}"`);
+      else fail('valid submit shows neither success nor an error message');
     } else warn('no form found: is there a way to act (call/WhatsApp/form)?');
     await ctx.close();
   }
@@ -477,6 +509,15 @@ const nFail = results.filter(r => r[0] === 'FAIL').length, nWarn = results.filte
 report.summary = { fail: nFail, warn: nWarn, results };
 fs.writeFileSync(path.join(OUT, 'qa_report.json'), JSON.stringify(report, null, 2));
 console.log(`\n${nFail} FAIL, ${nWarn} WARN   (report: ${path.join(OUT, 'qa_report.json')})`);
+try { // the automated results as an image, so the critic can score items it cannot see (performance, a11y, SEO)
+  const b2 = await chromium.launch(); const pg = await b2.newPage({ viewport: { width: 1100, height: 400 } });
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const col = { PASS: '#1f7a3a', WARN: '#8a5a00', FAIL: '#b42318' };
+  await pg.setContent(`<body style="font:14px/1.45 system-ui,sans-serif;margin:20px;direction:ltr"><h2 style="margin:0 0 8px">qa_web.mjs: ${nFail} FAIL, ${nWarn} WARN</h2>` +
+    results.map(([k, m]) => `<div><b style="color:${col[k]};display:inline-block;width:48px">${k}</b>${esc(m).slice(0, 230)}</div>`).join('') + '</body>');
+  fs.mkdirSync(path.join(OUT, 'review'), { recursive: true });
+  await pg.screenshot({ path: path.join(OUT, 'review', 'qa_summary.png'), fullPage: true }); await b2.close();
+} catch (e) { console.log('summary image failed: ' + e.message); }
 console.log('NEXT: LOOK at every screenshot (phone360/390, tablet768, desktop1440, form errors). Then an independent critic');
 console.log('scores the page against "רף הסוכנות" in references/website-store.md. Automated checks cannot judge design or copy.');
 process.exit(nFail ? 1 : 0);

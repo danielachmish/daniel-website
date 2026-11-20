@@ -34,6 +34,6 @@ export default (ctx) => {
     .spec{padding:24px 0 26px;border-top:2px solid color-mix(in srgb,var(--text) 18%,transparent);text-align:right}
     .spec .v{font-weight:900;font-size:${sq ? 64 : 72}px;line-height:1;color:var(--accent);text-align:right}
     .spec .k{font-weight:500;font-size:36px;line-height:1.15;margin-top:10px;color:var(--text)}
-    .foot{font-weight:600;font-size:34px;color:var(--muted)}`;
+    .foot{font-weight:600;font-size:34px;color:var(--text)}`;
   return {html, css};
 };

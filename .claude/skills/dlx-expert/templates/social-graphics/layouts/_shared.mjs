@@ -56,10 +56,11 @@ export const cta = (text = '', {size = 40, style = '', variant = 'accent'} = {})
   return `<div class="cta cta-${variant}" data-role="cta" style="font-size:${size}px;${style}"><span>${rich(t)}</span>${arrow ? ARROW(Math.round(size * 0.95)) : ''}</div>`;
 };
 
-// A row of real products on one floor line: hero in front and taller, the rest step back. Widths come from the
-// real image ratios and are spread so labels are not covered (overlap only at the edges when space is short).
-export const lineup = (ctx, srcs, {x0, x1, bottom, h, heroH, hero = Math.floor(srcs.length / 2), reflect = false, dimOthers = 0.85}) => {
-  const hs = srcs.map((_, i) => (i === hero ? heroH : h));
+// A row of real products on one floor line, all at the SAME scale (packs of the same size must look the same size:
+// a bigger "hero" box misrepresents the product). The hero is brought forward by light and z-order, not by size.
+// Widths come from the real image ratios; if space is short, reduce h rather than overlapping printed labels.
+export const lineup = (ctx, srcs, {x0, x1, bottom, h, hero = Math.floor(srcs.length / 2), reflect = false, dimOthers = 0.85}) => {
+  const hs = srcs.map(() => h);
   const ws = srcs.map((s, i) => { const d = ctx.dim(s); return hs[i] * d.w / d.h; });
   const total = ws.reduce((a, b) => a + b, 0); const gap = srcs.length > 1 ? Math.min(40, (x1 - x0 - total) / (srcs.length - 1)) : 0;
   let x = x0 + Math.max(0, (x1 - x0 - total - gap * (srcs.length - 1)) / 2);
