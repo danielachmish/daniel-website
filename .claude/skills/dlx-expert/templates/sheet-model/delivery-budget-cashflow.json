@@ -197,6 +197,16 @@
       "note": "יוצא מהבנק, לא הוצאה ברווח התפעולי (בעוסק מורשה)"
     },
     {
+      "name": "OwnerNI",
+      "label": "ביטוח לאומי ומס בריאות של הבעלים (מקדמה חודשית)",
+      "value": 2500,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 1000000,
+      "note": "[להשלים מרו\"ח]"
+    },
+    {
       "section": "רכבים והוצאות קבועות (בחודש)"
     },
     {
@@ -256,8 +266,8 @@
       "max": 1000000
     },
     {
-      "name": "OneOffPayments",
-      "label": "תשלומים חד-פעמיים (כולל מע\"מ)",
+      "name": "EquipmentPurchases",
+      "label": "רכישת ציוד (מדפסות מדבקות, סורקים), כולל מע\"מ",
       "unit": "₪",
       "format": "money",
       "min": 0,
@@ -269,14 +279,14 @@
         0,
         0,
         0,
-        12000,
+        0,
         0,
         0,
         0,
         0,
         0
       ],
-      "note": "דוגמה: ינואר מדפסות מדבקות וסורקים; יולי דמי הבראה. [להשלים]"
+      "note": "רכוש קבוע: יוצא מהבנק, לא נכנס לרווח התפעולי (פחת לא מחושב) [לאמת מול רו\"ח]. דמי הבראה כבר בתוך עלות המעסיק"
     },
     {
       "section": "מע\"מ, מס ומזומן"
@@ -314,14 +324,34 @@
       "max": 100000000
     },
     {
+      "name": "CollectionLagMonths",
+      "label": "אחרי כמה חודשים החנויות משלמות",
+      "value": 1,
+      "unit": "חודשים",
+      "format": "int",
+      "min": 1,
+      "max": 2,
+      "note": "שוטף+30: חשבונית החודש נפרעת בחודש שאחריו = 1. שוטף+60 = 2"
+    },
+    {
       "name": "OpeningReceivables",
-      "label": "חוב החנויות על החודש שלפני (כולל מע\"מ)",
+      "label": "חוב החנויות שנפרע בחודש הראשון (כולל מע\"מ)",
       "value": 173000,
       "unit": "₪",
       "format": "money",
       "min": 0,
       "max": 100000000,
-      "note": "החנויות משלמות שוטף+30"
+      "note": "בשוטף+30: חשבונית דצמבר"
+    },
+    {
+      "name": "OpeningReceivables2",
+      "label": "חוב שנפרע בחודש השני (רק כשמשלמים אחרי חודשיים)",
+      "value": 0,
+      "unit": "₪",
+      "format": "money",
+      "min": 0,
+      "max": 100000000,
+      "note": "בשוטף+60: חשבונית דצמבר"
     },
     {
       "name": "OpeningPayroll",
@@ -419,7 +449,7 @@
       "unit": "₪",
       "format": "money2",
       "min": 0,
-      "max": 100
+      "max": 1
     }
   ],
   "calcs": [
@@ -580,9 +610,9 @@
     },
     {
       "name": "VatableCosts",
-      "label": "הוצאות שחייבות במע\"מ",
+      "label": "הוצאות שחייבות במע\"מ (כל העלויות המשתנות חוץ מחובות ופיצויים, ליסינג ותקורה)",
       "unit": "₪",
-      "formula": "={FuelCost}+{RedeliveryCostTotal}+{MessagingCost}+{SuppliesCost}+{LeaseCost}+{OverheadCost}"
+      "formula": "={VariableCosts}-{BadDebt}-{LostParcelCost}+{LeaseCost}+{OverheadCost}"
     },
     {
       "name": "InputVat",
@@ -601,10 +631,13 @@
     },
     {
       "name": "Collections",
-      "label": "גבייה מחנויות (החודש הקודם, כולל מע\"מ, פחות חובות אבודים)",
+      "label": "גבייה מחנויות (כולל מע\"מ, פחות חובות אבודים)",
       "unit": "₪",
-      "formula": "={Revenue[-1]}*(1+VatRate)*(1-BadDebtRate)",
-      "first": "=OpeningReceivables*(1-BadDebtRate)"
+      "formula": "=IF(CollectionLagMonths=1,{Revenue[-1]},{Revenue[-2]})*(1+VatRate)*(1-BadDebtRate)",
+      "first": [
+        "=OpeningReceivables*(1-BadDebtRate)",
+        "=IF(CollectionLagMonths=1,{Revenue[-1]}*(1+VatRate),OpeningReceivables2)*(1-BadDebtRate)"
+      ]
     },
     {
       "name": "PayrollPaid",
@@ -617,7 +650,7 @@
       "name": "SupplierPayments",
       "label": "תשלום לספקים (כולל מע\"מ)",
       "unit": "₪",
-      "formula": "={VatableCosts}+{InputVat}+{InsuranceCost}+{LostParcelCost}"
+      "formula": "={VariableCosts}-{BadDebt}+{InputVat}+{LeaseCost}+{InsuranceCost}+{OverheadCost}"
     },
     {
       "name": "VatPaid",
@@ -634,10 +667,16 @@
       "first": "=OpeningTaxAdvance"
     },
     {
-      "name": "OneOffPaid",
-      "label": "תשלומים חד-פעמיים",
+      "name": "EquipmentPaid",
+      "label": "רכישת ציוד",
       "unit": "₪",
-      "formula": "={OneOffPayments}"
+      "formula": "={EquipmentPurchases}"
+    },
+    {
+      "name": "OwnerNIPaid",
+      "label": "ביטוח לאומי ומס בריאות של הבעלים",
+      "unit": "₪",
+      "formula": "=OwnerNI"
     },
     {
       "name": "OwnerDrawPaid",
@@ -726,6 +765,11 @@
         "format": "int"
       },
       {
+        "label": "מסגרת אשראי שצריך כדי לא לרדת מתחת לכרית",
+        "formula": "=MAX(0,MinCashBuffer-MIN({ClosingCash:row}))",
+        "format": "money"
+      },
+      {
         "section": "מה זה אומר (מתעדכן לבד)"
       },
       {
@@ -735,8 +779,13 @@
       },
       {
         "label": "המזומן מספיק?",
-        "formula": "=IF({BelowBuffer:total}>0,\"לא: \"&{BelowBuffer:total}&\" חודשים מתחת לכרית. לפתוח מסגרת או לדחות משיכות\",IF(MIN({ClosingCash:row})<MinCashBuffer*(1+SensVolumePct),\"בקושי: ירידה בנפח תוריד מתחת לכרית\",\"כן, עם מרווח\"))",
+        "formula": "=IF({BelowBuffer:total}>0,\"לא: \"&{BelowBuffer:total}&\" חודשים מתחת לכרית. צריך מסגרת של \"&TEXT(MAX(0,MinCashBuffer-MIN({ClosingCash:row})),\"#,##0\")&\" ₪, או להקטין משיכות\",IF(MIN({ClosingCash:row})<MinCashBuffer*(1+SensVolumePct),\"בקושי: ירידה בנפח תוריד מתחת לכרית\",\"כן, עם מרווח\"))",
         "format": "text"
+      },
+      {
+        "label": "הבעלים מושכים יותר מהרווח?",
+        "format": "text",
+        "formula": "=IF((OwnerDraw+OwnerNI)*COUNT({Revenue:row})>{OperatingProfit:total}-{TaxAdvancePaid:total},\"כן: משיכות וביטוח לאומי \"&TEXT((OwnerDraw+OwnerNI)*COUNT({Revenue:row}),\"#,##0\")&\" ₪ בשנה, מול רווח אחרי מקדמות של \"&TEXT({OperatingProfit:total}-{TaxAdvancePaid:total},\"#,##0\")&\" ₪. ההפרש יוצא מהמזומן\",\"לא, הרווח מכסה את המשיכות\")"
       },
       {
         "label": "נקודת איזון: משלוחים בחודש שמכסים את ההוצאות הקבועות",
@@ -758,6 +807,24 @@
         "formula": "={OperatingProfit:total}-SensVolumePct*({Revenue:total}-{VariableCosts:total})",
         "format": "money",
         "note": "בערך: בלי לצמצם נהגים"
+      },
+      {
+        "section": "תקציב מול ביצוע, מצטבר"
+      },
+      {
+        "label": "חודשים שהוזן להם ביצוע",
+        "formula": "=COUNT({ActualRevenue:row})",
+        "format": "int"
+      },
+      {
+        "label": "סטייה מצטברת בהכנסות",
+        "formula": "=IF(COUNT({ActualRevenue:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_RevenueVar:row}))",
+        "format": "money"
+      },
+      {
+        "label": "סטייה מצטברת בעלויות",
+        "formula": "=IF(COUNT({ActualCosts:row})=0,\"עוד לא הוזן ביצוע\",SUM({Out_CostVar:row}))",
+        "format": "money"
       }
     ],
     "table_title": "חודש אחרי חודש",
@@ -835,7 +902,8 @@
         "ClosingCash",
         "BufferLine"
       ],
-      "type": "line"
+      "type": "line",
+      "title_formula": "=\"המסקנה: \"&IF(MIN({ClosingCash:row})<0,\"היתרה בבנק יורדת עד \"&TEXT(MIN({ClosingCash:row}),\"#,##0\")&\" ₪ ב-\"&TEXT(INDEX({Periods:row},MATCH(MIN({ClosingCash:row}),{ClosingCash:row},0)),\"mm/yyyy\")&\", ולכן צריך מסגרת או פחות משיכות\",\"היתרה לא יורדת מתחת לאפס\")"
     }
   },
   "checks": [
@@ -864,8 +932,8 @@
       "formula": "=ABS({ClosingCash:last}-(OpeningCash+{NetCashFlow:total}))<=Tolerance"
     },
     {
-      "label": "גבייה: (חוב פתיחה + הכנסות כולל מע\"מ − חוב סגירה) × (1 − חובות אבודים) = נגבה",
-      "formula": "=ABS((OpeningReceivables+({Revenue:total}-{Revenue:last})*(1+VatRate))*(1-BadDebtRate)-{Collections:total})<=Tolerance"
+      "label": "גבייה: (חוב פתיחה + הכנסות כולל מע\"מ − מה שעוד לא נפרע) × (1 − חובות אבודים) = נגבה",
+      "formula": "=ABS((OpeningReceivables+IF(CollectionLagMonths=1,0,OpeningReceivables2)+({Revenue:total}-IF(CollectionLagMonths=1,{Revenue:last},{Revenue:last}+INDEX({Revenue:row},COUNT({Revenue:row})-1)))*(1+VatRate))*(1-BadDebtRate)-{Collections:total})<=Tolerance"
     },
     {
       "label": "מע\"מ: חוב פתיחה + מע\"מ התקופה = שולם + חוב סגירה; ומע\"מ תשומות = שיעור × הוצאות חייבות",
@@ -894,6 +962,14 @@
     {
       "label": "סבירות: אין חודש עם משלוחים, ימי עבודה או נהגים שליליים",
       "formula": "=AND(MIN({Deliveries:row})>=0,MIN({WorkingDays:row})>=0,MIN({ActiveDrivers:row})>=0)"
+    },
+    {
+      "label": "תזרים: יציאות השנה = חישוב עצמאי מסכומי העלויות, המע\"מ, המקדמות והמשיכות",
+      "formula": "=ABS(({Collections:total}-{NetCashFlow:total})-({PayrollPaid:total}+{SupplierPayments:total}+{VatPaid:total}+{TaxAdvancePaid:total}+SUM({EquipmentPurchases:row})+COUNT({Revenue:row})*(OwnerNI+OwnerDraw)))<=Tolerance"
+    },
+    {
+      "label": "ספקים: תשלום לספקים = כל העלויות חוץ משכר וחובות אבודים, ועוד מע\"מ תשומות",
+      "formula": "=ABS({SupplierPayments:total}-({TotalCosts:total}-{PayrollCost:total}-{BadDebt:total}+{InputVat:total}))<=Tolerance"
     }
   ],
   "howto": [

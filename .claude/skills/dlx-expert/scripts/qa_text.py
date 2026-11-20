@@ -79,7 +79,7 @@ def num(s):
 
 # ---------------------------------------------------------------- generic text checks
 def norm(s):
-    return re.sub(r"[\s\u00a0\u2060\u200e\u200f\u202a-\u202e\u2066-\u2069()\[\]{}\"'״׳“”‘’•]", "", s)
+    return re.sub(r"[×=÷\s\u00a0\u2060\u200e\u200f\u202a-\u202e\u2066-\u2069()\[\]{}\"'״׳“”‘’•]", "", s)
 
 
 def check_text(paras, kind=None):
@@ -351,7 +351,7 @@ class Meter:
         w = 0
         for ch in s:
             g = cmap.get(ord(ch))
-            w += hmtx[g][0] if g in hmtx else (0 if ord(ch) in (0x200e, 0x200f, 0x202a, 0x202c) else upm * 0.55)
+            w += hmtx[g][0] if g in hmtx else (0 if 0x200b <= ord(ch) <= 0x206f else upm * 0.55)
         return w / upm * size
 
     def line_h(self, size, bold):
@@ -517,7 +517,7 @@ def check_visual(pdf, source_texts):
             # split the visual row into segments at wide gaps (table columns, tab stops)
             segs, cur, prev_x1 = [], [], None
             for x0, x1, ch, size in chars:
-                if prev_x1 is not None and x0 - prev_x1 > size * 1.8:
+                if prev_x1 is not None and x0 - prev_x1 > size * 1.2:
                     segs.append(cur)
                     cur = []
                 cur.append(ch)

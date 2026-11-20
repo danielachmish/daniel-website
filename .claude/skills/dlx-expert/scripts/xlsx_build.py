@@ -60,7 +60,7 @@ FORMATS = {
     "money2": '₪#,##0.00;[Red]-₪#,##0.00',
     "int": '#,##0;[Red]-#,##0',
     "num": '#,##0.00',
-    "pct": '0.0%',
+    "pct": '0.0#%',
     "text": '@',
     "bool": 'General',
     "month": '[$-40D]mmm yy',
@@ -102,6 +102,9 @@ class Builder:
         self.wb = Workbook()
         self.wb.remove(self.wb.active)
         self.input_cells = []
+        self.calc_items = {}
+        self.out_links = []
+        self.shadow_check = None
 
     # ---------- helpers ----------
     def pcol(self, j):
@@ -150,9 +153,10 @@ class Builder:
                 if x not in self.rows:
                     die(f"unknown row {x} in {{{a}..{b}}}")
             (sa, ra, _), (sb, rb, _) = self.rows[a], self.rows[b]
-            if sa != sb or sa != sheet or j is None:
-                die(f"{{{a}..{b}}} must be rows on this sheet, used inside the timeline")
-            return f"{self.pcol(j)}{ra}:{self.pcol(j)}{rb}"
+            if sa != sb or j is None:
+                die(f"{{{a}..{b}}} must be rows on one sheet, used inside the timeline")
+            pre = "" if sa == sheet else qs(sa) + "!"
+            return f"{pre}{self.pcol(j)}{ra}:{self.pcol(j)}{rb}"
 
         formula = re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)\.\.([A-Za-z_][A-Za-z0-9_]*)\}", span, formula)
         out = re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)(\[-?\d+\])?(:[a-z]+)?\}", sub, formula)
@@ -184,7 +188,7 @@ class Builder:
         ws.sheet_properties.pageSetUpPr.fitToPage = True
         ws.column_dimensions["A"].width = 44
         ws.column_dimensions["B"].width = 11
-        ws.column_dimensions["C"].width = 16
+        ws.column_dimensions["C"].width = 18
         if with_timeline:
             for j in range(self.n):
                 ws.column_dimensions[self.pcol(j)].width = 13
@@ -202,10 +206,10 @@ class Builder:
                     t = f"={qs(self.sn['calcs'])}!{self.pcol(j)}$2"
             c = ws.cell(row=r, column=i + 1, value=t)
             c.fill, c.font = HEAD_FILL, HEAD_FONT
-            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             if i >= 3 and self.start:
                 c.number_format = FORMATS["month"]
-        ws.row_dimensions[r].height = 20
+        ws.row_dimensions[r].height = 32
 
     def section(self, ws, r, text, width):
         for col in range(1, width + 1):
@@ -280,7 +284,10 @@ class Builder:
                 self.validate(ws, item, [c.coordinate])
                 self.register(item["name"], ws.title, r, "scalar")
             if item.get("note"):
-                ws.cell(row=r, column=note_col, value=item["note"]).font = NOTE_FONT
+                nc = ws.cell(row=r, column=note_col, value=item["note"])
+                nc.font = NOTE_FONT
+                nc.alignment = Alignment(wrap_text=True, vertical="top")
+                ws.row_dimensions[r].height = 15 * (1 + len(item["note"]) // 75)
             r += 1
         self.ws_inputs = ws
 
@@ -298,6 +305,7 @@ class Builder:
                 r += 1
                 continue
             self.register(item["name"], ws.title, r, "series")
+            self.calc_items[item["name"]] = item
             pending.append((item, r))
             r += 1
         for item, r in pending:
@@ -308,8 +316,10 @@ class Builder:
         ws.cell(row=r, column=LABEL_COL, value=item["label"]).font = TOTAL_FONT if item.get("bold") else CALC_FONT
         ws.cell(row=r, column=UNIT_COL, value=item.get("unit", "")).font = SUB_FONT
         fmt = FORMATS.get(item.get("format", "money"), item.get("format"))
+        first = item.get("first")
+        firsts = first if isinstance(first, list) else ([first] if first else [])
         for j in range(self.n):
-            f = item.get("first") if (j == 0 and item.get("first")) else item["formula"]
+            f = firsts[j] if j < len(firsts) else item["formula"]
             c = ws.cell(row=r, column=FIRST_PERIOD_COL + j, value=self.tr(f, ws.title, j))
             c.number_format = fmt
             c.font = TOTAL_FONT if item.get("bold") else CALC_FONT
@@ -327,11 +337,13 @@ class Builder:
     def build_outputs(self):
         out = self.spec.get("outputs", {})
         ws = self.sheet("outputs")
+        ws.page_setup.fitToHeight = 1     # the dashboard prints (and previews as PDF) as one page
         self.title(ws, self.spec.get("title", "מודל"))
         ws.cell(row=2, column=1, value=self.spec.get("subtitle", "")).font = SUB_FONT
         r = 4
         self.section(ws, r, "השורה התחתונה", 3)
         r += 1
+        deferred = []
         for k in out.get("kpis", []):
             if "section" in k:
                 r += 1
@@ -339,7 +351,8 @@ class Builder:
                 r += 1
                 continue
             ws.cell(row=r, column=1, value=k["label"]).font = Font(name=FONT, size=12)
-            c = ws.cell(row=r, column=TOTAL_COL, value=self.tr(k["formula"], ws.title))
+            c = ws.cell(row=r, column=TOTAL_COL)
+            deferred.append((c, k["formula"]))   # translated after the table rows exist (KPIs may read them)
             c.font = KPI_FONT
             c.number_format = FORMATS.get(k.get("format", "money"), k.get("format"))
             c.alignment = Alignment(horizontal="center")
@@ -376,6 +389,8 @@ class Builder:
                 item = {"label": t["label"], "unit": t.get("unit", "₪"), "formula": t.get("formula") or "={" + t["ref"] + "}",
                         "format": t.get("format", "money"), "total": t.get("total", "sum"), "bold": t.get("bold")}
                 self.register(t.get("name") or "Out_" + t["ref"], ws.title, r, "series")
+                if "ref" in t and "formula" not in t:   # pure links are guarded by the hidden copy too
+                    self.out_links.append((r, item))
                 self.fill_row(ws, item, r)
                 for j in range(-2, self.n):
                     ws.cell(row=r, column=FIRST_PERIOD_COL + j).font = LINK_FONT if not t.get("bold") else Font(name=FONT, bold=True, color="006100")
@@ -386,6 +401,13 @@ class Builder:
                 rows = [self.rows["Out_" + x][1] for x in ch["rows"]]
                 chart = LineChart() if ch.get("type", "line") == "line" else BarChart()
                 chart.title = ch["title"]
+                if ch.get("title_formula"):   # a title that states the conclusion, recomputed from the model
+                    tr_ = last_row + 2
+                    tc = ws.cell(row=tr_, column=1, value=self.tr(ch["title_formula"], ws.title))
+                    tc.font = Font(name=FONT, bold=True, size=13, color="1F3864")
+                    ws.merge_cells(start_row=tr_, start_column=1, end_row=tr_, end_column=FIRST_PERIOD_COL + self.n - 1)
+                    tc.alignment = Alignment(horizontal="right", readingOrder=2)
+                    last_row = tr_
                 chart.height, chart.width = 8, 26
                 chart.y_axis.numFmt = '₪#,##0'
                 for rr in rows:
@@ -405,6 +427,8 @@ class Builder:
                 chart.y_axis.delete = False
                 chart.legend.position = "b"
                 ws.add_chart(chart, f"A{last_row + 3}")
+        for c, f in deferred:
+            c.value = self.tr(f, ws.title)
         ws.freeze_panes = None
         self.ws_out = ws
 
@@ -415,7 +439,7 @@ class Builder:
         ws.cell(row=2, column=1, value="אם שורה הופכת ל-FALSE אחרי שינוי, משהו במודל נשבר. לא למסור ולא להחליט לפי המספרים עד שמתקנים.").font = SUB_FONT
         r = 4
         first = r
-        for chk in self.spec.get("checks", []):
+        for chk in self.spec.get("checks", []) + ([self.shadow_check] if self.shadow_check else []):
             ws.cell(row=r, column=1, value=chk["label"]).font = CALC_FONT
             c = ws.cell(row=r, column=TOTAL_COL, value=self.tr(chk["formula"], ws.title))
             c.font, c.alignment = TOTAL_FONT, Alignment(horizontal="center")
@@ -434,6 +458,34 @@ class Builder:
         for rng, top in ((f"C{first}:C{last}", first), (f"C{r}", r)):   # not the blank row between them
             ws.conditional_formatting.add(rng, FormulaRule(formula=[f"C{top}=TRUE"], fill=green))
             ws.conditional_formatting.add(rng, FormulaRule(formula=[f'AND(C{top}<>"",C{top}=FALSE)'], fill=red))
+
+    def build_shadow(self):
+        """A hidden, protected copy of every calculation row (same formulas, reading the visible sheet), and one check that
+        the visible numbers equal it. Any later edit of a formula, or a number typed over one, turns the check FALSE."""
+        if not self.spec.get("shadow_check", True):
+            return
+        sh = self.wb.create_sheet("QA_shadow")
+        sh.sheet_state = "hidden"
+        calc_rows = [(n, r) for n, (sheet, r, k) in self.rows.items() if sheet == self.sn["calcs"]]
+        for name, r in calc_rows:
+            item = self.calc_items[name]
+            first = item.get("first")
+            firsts = first if isinstance(first, list) else ([first] if first else [])
+            for j in range(self.n):
+                f = firsts[j] if j < len(firsts) else item["formula"]
+                sh.cell(row=r, column=FIRST_PERIOD_COL + j, value=self.tr(f, sh.title, j))
+        sh.sheet_view.rightToLeft = True
+        lo_r, hi_r = min(r for _, r in calc_rows), max(r for _, r in calc_rows)
+        a, b = self.pcol(0), self.pcol(self.n - 1)
+        parts = [f"SUMPRODUCT(ABS({qs(self.sn['calcs'])}!{a}{lo_r}:{b}{hi_r}-{qs(sh.title)}!{a}{lo_r}:{b}{hi_r}))"]
+        off = hi_r + 10
+        for k, (r, item) in enumerate(self.out_links):
+            sr = off + k
+            for j in range(self.n):
+                sh.cell(row=sr, column=FIRST_PERIOD_COL + j, value=self.tr(item["formula"], sh.title, j))
+            parts.append(f"SUMPRODUCT(ABS({qs(self.sn['outputs'])}!{a}{r}:{b}{r}-{qs(sh.title)}!{a}{sr}:{b}{sr}))")
+        self.shadow_check = {"label": "אף נוסחה בחישובים ובטבלת התוצאות לא נערכה ולא הוקלד עליה מספר (השוואה להעתק מוגן ומוסתר)",
+                             "formula": "=" + "+".join(parts) + "<=Tolerance"}
 
     def build_howto(self):
         ws = self.sheet("howto", with_timeline=False)
@@ -466,11 +518,12 @@ class Builder:
         self.build_inputs()
         self.build_calcs()
         self.build_outputs()       # uses the name QA_AllChecks, defined by build_checks
+        self.build_shadow()
         self.build_checks()
         self.build_howto()
         self.rtl_text()
         self.protect()
-        order = [self.sn[k] for k in ("outputs", "inputs", "calcs", "checks", "howto")]
+        order = [self.sn[k] for k in ("outputs", "inputs", "calcs", "checks", "howto")] + ["QA_shadow"]
         self.wb._sheets.sort(key=lambda w: order.index(w.title))
         self.wb.active = 0
         self.wb.calculation.fullCalcOnLoad = True   # Excel / Sheets compute on open

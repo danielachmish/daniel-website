@@ -303,8 +303,8 @@ def k_formula(sl, t, s, n, total):
             box = rect(sl, x + 0.05, 2.8, bw - 0.1, 2.3, t.light, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.06,
                        line="B9C1D3")
             box.line.dash_style = MSO_LINE.DASH
-            text(sl, x + 0.15, 2.95, bw - 0.3, 1.0, lab, MIN_PT, t.ink, bold=True, align="ctr", anchor="m")
-            text(sl, x + 0.15, 4.0, bw - 0.3, 1.0, item.get("source_hint", "נתון לאיסוף"), MIN_PT, t.muted,
+            text(sl, x + 0.15, 2.9, bw - 0.3, 1.2, lab, MIN_PT, t.ink, align="ctr", anchor="m")
+            text(sl, x + 0.15, 4.1, bw - 0.3, 0.95, item.get("source_hint", "נתון לאיסוף"), MIN_PT, t.muted,
                  align="ctr")
             continue
         rect(sl, x + 0.05, 2.8, bw - 0.1, 2.3, t.dark if last else t.card, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.06)
@@ -451,6 +451,10 @@ def k_closing(sl, t, s, n, total):
 KINDS = {k[2:]: v for k, v in globals().items() if k.startswith("k_")}
 
 
+FIELD_NAMES = {"amount": "סכום הגיוס", "after_fees": "שיעור עמלת סליקה", "after_tax": "שיעור המס",
+               "footer": "סבב וחודש", "pct": "אחוז מהגיוס", "price": "מחיר", "contact": "פרטי קשר"}
+
+
 def collect_list(spec):
     """Every data point the deck still needs, slide by slide: [לאשר] markers and missing hero numbers."""
     import re as _re
@@ -464,13 +468,23 @@ def collect_list(spec):
                     return
                 for k, v in o.items():
                     if k != "notes":
-                        walk(v)
+                        walk(v, FIELD_NAMES.get(k, label))
             elif isinstance(o, list):
                 for v in o:
                     walk(v)
             elif isinstance(o, str):
-                found.extend(m.strip("[]").replace("לאשר:", "").strip() or "ערך" for m in _re.findall(r"\[לאשר[^\]]*\]", o))
-        walk(sl)
+                for m in _re.findall(r"\[לאשר[^\]]*\]", o):
+                    what = m.strip("[]").replace("לאשר", "", 1).strip(" :")
+                    found.append(what or label or _re.sub(r"\[לאשר[^\]]*\]", "___", o)[:60])
+        if sl.get("rows"):          # table cells: name them by row and column, not by the bare marker
+            cols = sl.get("columns", [])
+            for row in sl["rows"]:
+                for j, cell in enumerate(row):
+                    if "[לאשר" in str(cell):
+                        found.append(f"{row[0]} · {cols[j] if j < len(cols) else ''}".strip(" ·"))
+            walk({k: v for k, v in sl.items() if k != "rows"})
+        else:
+            walk(sl)
         title = sl.get("headline") or sl.get("title", "")
         title = title if isinstance(title, str) else " ".join(title)
         for f in dict.fromkeys(found):

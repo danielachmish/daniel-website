@@ -128,6 +128,7 @@ async function login(name, spec) {
     if (!s.jar.size && !Object.keys(s.headers).length) { fail(`[${name}] login returned no session cookie or token`); return null; }
     s.csrf = null;   // the pre-login token belongs to the old session
     // session fixation: a cookie that existed before login must not keep its value after login
+    s.preJar = pre;
     const kept = [...pre].filter(([k, v]) => s.jar.get(k) === v).map(([k]) => k);
     if (pre.size) kept.length ? fail(`[${name}] session id NOT rotated at login (cookie ${kept.join(', ')} kept its pre-login value): session fixation`)
                               : pass(`[${name}] session id rotated at login`);
@@ -139,6 +140,14 @@ async function login(name, spec) {
     is2xx(w.status) && contains(w.text, [spec.whoami.marker]) ? pass(`[${name}] logged in as themself (whoami ${spec.whoami.path} shows "${spec.whoami.marker}")`)
       : fail(`[${name}] whoami ${spec.whoami.path}: HTTP ${w.status} without "${spec.whoami.marker}": NOT logged in as ${name}`);
     s.whoText = w.text;
+    // fixation, the real test: does the PRE-login session id (one an attacker could plant) now act as this user?
+    if (s.preJar && s.preJar.size) {
+      const planted = new Session(`${name}-planted`); planted.jar = new Map(s.preJar);
+      const pw = await planted.req('GET', spec.whoami.path);
+      is2xx(pw.status) && contains(pw.text, [spec.whoami.marker])
+        ? fail(`[${name}] the pre-login session id is logged in as ${name} after login: session fixation`)
+        : pass(`[${name}] pre-login session id not usable after login (HTTP ${pw.status})`);
+    }
   }
   const tp = spec.csrfPage || cfg.csrf?.tokenPage;   // one of THIS user's pages that renders a form with a token
   if (tp) { const pg = await s.req('GET', tp); const t = findCsrf(pg.text); if (t) s.csrf = t; }
@@ -187,6 +196,7 @@ function checkHeaders(where, h, kind) {
 
 // ---------- attacks ----------
 const ownerBodies = new Map();
+const globalMarkers = new Set();   // every explicit marker + phones/e-mails seen in ANY of A's responses
 async function snapshot(A, r) {
   if (!r.verify) return null;
   const v = await A.req('GET', r.verify.path);
@@ -197,7 +207,7 @@ async function attempt(who, sess, r, A) {
   const res = await sess.req(M(r), r.path, { json: r.json, form: r.form, headers: r.headers });
   const after = before !== null ? await snapshot(A, r) : null;
   const tag = `${who} -> ${M(r)} ${r.path} (${r.name})`;
-  const markers = [...(r.ownerMarkers || []), ...(r.ownerMarker ? [r.ownerMarker] : []), ...autoMarkers(ownerBodies.get(r.path) || '')];
+  const markers = [...new Set([...(r.ownerMarkers || []), ...(r.ownerMarker ? [r.ownerMarker] : []), ...globalMarkers])];
   // only flag markers the attacker could not legitimately see in its own data
   const leakedMarker = contains(res.text, markers.filter(mk => !(sess.whoText || '').includes(mk)));
   const same = is2xx(res.status) && ownerBodies.has(r.path) && ownerBodies.get(r.path).length > 20 && res.text === ownerBodies.get(r.path);
@@ -239,10 +249,34 @@ else {
       ? fail(`anonymous GET ${p}: HTTP ${r.status}: protected page served without login`)
       : pass(`anonymous GET ${p}: refused (HTTP ${r.status}${r.headers.get('location') ? ' -> ' + r.headers.get('location') : ''})`);
   }
-  for (const r of cfg.resources || []) if (!isChanging(r)) {
-    const o = await A.req('GET', r.path, { headers: r.headers });
-    if (is2xx(o.status)) ownerBodies.set(r.path, o.text);
+  for (const r of cfg.resources || []) {
+    for (const mk of [...(r.ownerMarkers || []), ...(r.ownerMarker ? [r.ownerMarker] : [])]) globalMarkers.add(mk);
+    if (!isChanging(r)) {
+      const o = await A.req('GET', r.path, { headers: r.headers });
+      if (is2xx(o.status)) { ownerBodies.set(r.path, o.text); autoMarkers(o.text).forEach(m => globalMarkers.add(m)); }
+    }
+    if (r.verify) { const v = await A.req('GET', r.verify.path); if (is2xx(v.status)) autoMarkers(v.text).forEach(m => globalMarkers.add(m)); }
   }
+  for (const p of cfg.pages || []) { const o = await A.req('GET', p); if (is2xx(o.status)) autoMarkers(o.text).forEach(m => globalMarkers.add(m)); }
+  for (const [, s] of attackers) autoMarkers(s.whoText || '').forEach(m => globalMarkers.delete(m));
+  // route coverage: every link / form on A's pages that carries an id must be listed as a resource
+  const idRoute = /\/(\d{2,}|[0-9a-f]{8}-[0-9a-f-]{27,})(\/|$|\?)/i;
+  // a route "carries an id" in its path (/orders/123) or in an owner-like query parameter (?owner=, ?store_id=)
+  const idParam = /^(id|.*_id|owner|store|user|account|customer|tenant|org|company)$/i;
+  const routeKey = u => {
+    const [path, q = ''] = u.split('?');
+    const ps = [...new URLSearchParams(q.replace(/&amp;/g, '&')).keys()].filter(k => idParam.test(k)).sort();
+    return ps.length ? `${path}?${ps.join('&')}` : (idRoute.test(path) ? path : null);
+  };
+  const covered = new Set((cfg.resources || []).map(r => routeKey(r.path) || r.path.split('?')[0]));
+  const found = new Set();
+  for (const p of cfg.pages || []) {
+    const o = await A.req('GET', p);
+    for (const m of o.text.matchAll(/(?:href|action)\s*=\s*["'](\/[^"'#]*)["']/gi)) { const k = routeKey(m[1]); if (k) found.add(k); }
+  }
+  const uncovered = [...found].filter(x => !covered.has(x) && !(cfg.ignoreRoutes || []).includes(x));
+  uncovered.length ? fail(`route coverage: ${uncovered.length} route(s) with an id found on A's pages but not tested as a resource: ${uncovered.slice(0, 8).join(', ')}`)
+                   : pass(`route coverage: all ${found.size} id routes linked from A's pages are tested`);
   // attacks before the owner baseline, so a destructive baseline cannot hide them
   for (const r of cfg.resources || []) {
     await attempt('anonymous', anon, r, A);
@@ -257,10 +291,23 @@ else {
         if ('token' in opts && !opts.token) continue;
         const before = await snapshot(A, r);
         const nr = await A.req(M(r), r.path, { json: r.json, form: r.form, ...opts });
+        if (before !== null && before !== await snapshot(A, r)) { fail(`CSRF: ${M(r)} ${r.path} accepted ${label}: HTTP ${nr.status} and A's data changed`); continue; }
         const after = before !== null ? await snapshot(A, r) : null;
         is2xx(nr.status) || (before !== null && before !== after)
           ? fail(`CSRF: ${M(r)} ${r.path} accepted ${label} (HTTP ${nr.status}${before !== after ? ', data changed' : ''})`)
           : pass(`CSRF: ${M(r)} ${r.path} ${label} refused (HTTP ${nr.status})`);
+      }
+      // the "simple request" bodies a foreign site can send without a preflight: text/plain and multipart/form-data
+      const payload = r.json ? JSON.stringify(r.json) : new URLSearchParams(r.form || {}).toString();
+      for (const [ct, body] of [['text/plain', payload], ['multipart/form-data; boundary=qa', `--qa\r\nContent-Disposition: form-data; name="status"\r\n\r\n${(r.json || r.form || {}).status ?? ''}\r\n--qa--\r\n`]]) {
+        const before = await snapshot(A, r);
+        const h = { 'User-Agent': 'qa_authz/2.0', Cookie: A.cookieHeader(), 'Content-Type': ct, Origin: 'https://evil.example' };
+        const res = await fetch(BASE + r.path, { method: M(r), headers: h, body, redirect: 'manual' });
+        await res.text();
+        const changed = before !== null && before !== await snapshot(A, r);
+        is2xx(res.status) || changed
+          ? fail(`CSRF: ${M(r)} ${r.path} accepted a ${ct.split(';')[0]} body from a foreign Origin without a token (HTTP ${res.status}${changed ? ', data changed' : ''})`)
+          : pass(`CSRF: ${ct.split(';')[0]} body without token refused (HTTP ${res.status})`);
       }
       if (!r.verify) warn(`CSRF: ${r.path} has no "verify" path, so a refused-but-saved CSRF write would go unnoticed`);
     }
@@ -286,15 +333,28 @@ else {
   }
   if (cfg.rateLimit) {
     const RL = cfg.rateLimit, n = RL.attempts || 20;
+    const blocked = r => [429, 423].includes(r.status) || (RL.blockedMarker && r.text.includes(RL.blockedMarker));
     let limited = null;
     for (let i = 0; i < n && !limited; i++) {
       const s = new Session('ratelimit');
       if (RL.csrfFrom) { const pg = await s.req('GET', RL.csrfFrom); s.csrf = findCsrf(pg.text); }
       const r = await s.req(RL.method || 'POST', RL.path, { form: RL.form, json: RL.json });
-      if ([429, 423].includes(r.status) || /too many|try again later|נסה שוב מאוחר|יותר מדי/i.test(r.text)) limited = i + 1;
+      if (blocked(r)) limited = i + 1;
     }
-    limited ? pass(`rate limit: ${RL.path} blocked after ${limited} wrong attempts`)
-            : fail(`rate limit: ${n} wrong attempts on ${RL.path} and none was blocked (brute force possible)`);
+    if (!limited) fail(`rate limit: ${n} wrong attempts on ${RL.path} and none answered 429/423 (brute force possible)`);
+    else if (limited === 1) fail(`rate limit: the FIRST attempt was already "blocked": the check cannot tell a lock from a normal error`);
+    else {
+      pass(`rate limit: ${RL.path} answered 429/423 after ${limited - 1} wrong attempts`);
+      if (RL.validForm || RL.validJson) {   // while locked, even the right password must not log in
+        const s = new Session('ratelimit-valid');
+        if (RL.csrfFrom) { const pg = await s.req('GET', RL.csrfFrom); s.csrf = findCsrf(pg.text); }
+        const r = await s.req(RL.method || 'POST', RL.path, { form: RL.validForm, json: RL.validJson });
+        const w = RL.whoami ? await s.req('GET', RL.whoami.path) : null;
+        const inside = w ? is2xx(w.status) && contains(w.text, [RL.whoami.marker]) : (r.status >= 200 && r.status < 400 && !blocked(r));
+        inside ? fail(`rate limit: during the lock the CORRECT password still logged in (HTTP ${r.status}): the lock does nothing`)
+               : pass(`rate limit: during the lock the correct password is refused too (HTTP ${r.status})`);
+      } else warn('rateLimit: no "validForm" for the locked account, so a lock that lets the right password through is not detected');
+    }
   } else warn('no "rateLimit" block in config: login brute-force protection not tested');
   if (cfg.logout && A.spec.whoami) {
     const stolen = new Session('stolen-cookie'); stolen.jar = new Map(A.jar);

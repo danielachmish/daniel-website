@@ -205,6 +205,15 @@ def table_borders(t, color=RULE, inside_h=True, outer=False):
     tblPr.append(b)
 
 
+def rows_keep(t, header=True):
+    """Rows never split across pages (w:cantSplit); the header row repeats on a new page (w:tblHeader)."""
+    for i, row in enumerate(t.rows):
+        trPr = row._tr.get_or_add_trPr()
+        trPr.append(OxmlElement("w:cantSplit"))
+        if header and i == 0:
+            trPr.append(OxmlElement("w:tblHeader"))
+
+
 def cell_fill(cell, fill):
     tcPr = cell._tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
@@ -451,6 +460,7 @@ def build_quote(spec, out):
         cell_text(r[3], ils(it["unit_price"]), size=10.5, align="center")
         cell_text(r[4], ils(line), size=10.5, bold=True, align="center")
     col_widths(t, widths)
+    rows_keep(t)
 
     tot = [("סה\"כ לפני מע\"מ" if not exempt else "סה\"כ", sub)]
     if disc:
@@ -479,7 +489,8 @@ def build_quote(spec, out):
         col = "FFFFFF" if last else INK
         cell_text(r[1], lab, size=11.5 if last else 10.5, bold=last, color=col)
         cell_text(r[2], ils(val), size=11.5 if last else 10.5, bold=True, color=col, align="center")
-    col_widths(t, [11.8, 2.8, 2.8])
+    col_widths(t, [10.8, 3.8, 2.8])
+    rows_keep(t, header=False)
 
     for key, title in (("compliance", "נגישות ופרטיות"), ("excluded", "מה לא כלול"), ("timeline", "לוח זמנים"),
                        ("payment", "תנאי תשלום"), ("warranty", "אחריות, אחסון ותחזוקה"), ("terms", "תנאים")):
@@ -685,6 +696,24 @@ def fit(spec, out):
     return 1.0, pages, fill
 
 
+def fit_checklist(spec, path):
+    """The client checklist gets the same rule: one page if it can, never a nearly empty last page."""
+    global SCALE
+    best = None
+    for sc in (1.0, 0.95, 0.9, 1.05, 1.1):
+        SCALE = sc
+        build_checklist(spec, path)
+        pages, fill = pdf_layout(to_pdf(path))
+        if pages == 1 or (fill is not None and fill >= 0.4):
+            best = sc
+            break
+    if best is None:
+        SCALE = 1.0
+        build_checklist(spec, path)
+        to_pdf(path)
+    SCALE = 1.0
+
+
 def main():
     global FONT_HEAD, FONT_BODY
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -698,6 +727,8 @@ def main():
         out = os.path.join(out, suggested_name(spec) + ".docx")
     if "--pdf" in sys.argv:
         sc, pages, fill = fit(spec, out)
+        if spec["type"] == "letter" and spec.get("submission"):
+            fit_checklist(spec, os.path.splitext(out)[0] + "-checklist.docx")
         print(f"DOCX: {out}\nPDF:  {os.path.splitext(out)[0]}.pdf  (scale {sc:.2f}, {pages} pages, last page "
               f"{'?' if fill is None else f'{fill:.0%}'} full)")
     else:

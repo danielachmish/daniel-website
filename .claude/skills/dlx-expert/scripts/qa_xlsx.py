@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qa_xlsx.py <workbook.xlsx> [out_dir] [--allow 0,1] [--data-sheets "גיליון נתונים,Data"] [--target excel2019] [--mutate 8] [--no-render]
+"""qa_xlsx.py <workbook.xlsx> [out_dir] [--allow 0,1] [--data-sheets "גיליון נתונים,Data"] [--target excel2019] [--mutate N] [--mutate-warn] [--no-render]
 
 Mandatory spreadsheet QA before delivery. Recalculates a COPY headless in LibreOffice (the client's file is
 never touched), then checks the computed values, not just the formulas:
@@ -13,9 +13,10 @@ never touched), then checks the computed values, not just the formulas:
   FAIL  a typed number outside the inputs that is not styled as an input (a hidden hard-code), or a formula
         cell styled like an input, or two different input styles
   FAIL  a Hebrew sheet that is not right-to-left
-  FAIL  a formula that breaks its row's pattern (FAST: one formula per row; only the first period may differ)
+  FAIL  a formula that breaks its row's pattern (FAST: one formula per row; only a roll-forward row's opening periods differ)
   FAIL  a constant hidden in a named range; input without data validation; locked input; unprotected formula sheet
-  FAIL  mutation test: a calculated number typed over and NONE of the model checks notices (--mutate N, default 8)
+  FAIL  mutation test: a calculation row where a typed-over number is noticed by NO model check (default: every row;
+        --mutate N samples N rows, --mutate 0 skips; --mutate-warn downgrades to WARN for a client file you only fix)
   WARN  IFERROR/IFNA that can hide errors; some mutations not noticed by the checks
   WARN  formulas that point at empty cells; volatile OFFSET/INDIRECT; functions missing in --target Excel version
 
@@ -62,7 +63,7 @@ def args():
     a = sys.argv[1:]
     if not a or a[0] in ("-h", "--help"):
         sys.exit(__doc__)
-    opts = {"allow": {0.0, 1.0}, "data": set(), "target": None, "render": True, "mutate": 8}
+    opts = {"allow": {0.0, 1.0}, "data": set(), "target": None, "render": True, "mutate": -1, "mutate_warn": False}
     pos = []
     i = 0
     while i < len(a):
@@ -74,6 +75,8 @@ def args():
             opts["target"] = a[i + 1].lower(); i += 2
         elif a[i] == "--mutate":
             opts["mutate"] = int(a[i + 1]); i += 2
+        elif a[i] == "--mutate-warn":
+            opts["mutate_warn"] = True; i += 1
         elif a[i] == "--no-render":
             opts["render"] = False; i += 1
         else:
@@ -179,6 +182,72 @@ def strip_formula(f):
     return s
 
 
+def short_sums(ws, c, f):
+    """Every SUM(range) over one row or one column whose next cell (a number or formula, not referenced elsewhere in the
+    same formula, not the cell itself, not a label) is left out: the classic "forgot December" / "forgot the last cost"."""
+    out = []
+    try:
+        toks = Tokenizer(f).items
+    except Exception:
+        return out
+    refs = set()
+    for t in toks:
+        if t.type == "OPERAND" and t.subtype == "RANGE" and "!" not in t.value:
+            for part in t.value.replace("$", "").split(":"):
+                if A1.match(part):
+                    refs.add(part.upper())
+    for k, t in enumerate(toks):
+        if t.type == "FUNC" and t.subtype == "OPEN" and t.value.upper() == "SUM(" and k + 1 < len(toks):
+            nx = toks[k + 1]
+            if nx.type != "OPERAND" or nx.subtype != "RANGE" or "!" in nx.value or ":" not in nx.value:
+                continue
+            try:
+                c1, r1, c2, r2 = range_boundaries(nx.value.replace("$", ""))
+            except Exception:
+                continue
+            if r1 == r2:
+                nbrs = [(r1, c2 + 1), (r1, c1 - 1)]
+            elif c1 == c2:
+                nbrs = [(r2 + 1, c1), (r1 - 1, c1)]
+            else:
+                continue
+            for nr, nc in nbrs:
+                if nr < 1 or nc < 1 or (nr, nc) == (c.row, c.column):
+                    continue
+                coord = f"{get_column_letter(nc)}{nr}"
+                nb = ws.cell(row=nr, column=nc).value
+                if nb is None or (isinstance(nb, str) and not nb.startswith("=")) or coord in refs:
+                    continue
+                if r1 == r2 and nc < c.column and nr == c.row:   # the row-total column itself, left of the periods
+                    continue
+                out.append(f"{ws.title}!{c.coordinate} {f[:60]} stops short: {coord} next to {nx.value} is not included")
+    return out
+
+
+def literal_tricks(f):
+    """Numbers smuggled past the literal check: a number inside a string ("0.4") used in arithmetic, or arithmetic made
+    only of allowed literals ((1+1) = 2)."""
+    out = []
+    try:
+        toks = [t for t in Tokenizer(f).items if t.type != "WHITE-SPACE"]
+    except Exception:
+        return out
+    for k, t in enumerate(toks):
+        if t.type == "OPERAND" and t.subtype == "TEXT":
+            inner = t.value.strip('"')
+            if re.fullmatch(r"-?\d+(\.\d+)?%?", inner):
+                prev = toks[k - 1] if k else None
+                nxt = toks[k + 1] if k + 1 < len(toks) else None
+                if (prev is not None and prev.type == "OPERATOR-INFIX" and prev.value in "+-*/^") or \
+                   (nxt is not None and nxt.type == "OPERATOR-INFIX" and nxt.value in "+-*/^"):
+                    out.append(f'number hidden in a string {t.value}')
+        if t.type == "OPERAND" and t.subtype == "NUMBER" and k + 2 < len(toks):
+            if toks[k + 1].type == "OPERATOR-INFIX" and toks[k + 1].value in "+-*/^" and \
+               toks[k + 2].type == "OPERAND" and toks[k + 2].subtype == "NUMBER":
+                out.append(f"constant arithmetic {t.value}{toks[k + 1].value}{toks[k + 2].value}")
+    return out
+
+
 def literals(f):
     try:
         return [t.value for t in Tokenizer(f).items if t.type == "OPERAND" and t.subtype == "NUMBER"]
@@ -268,6 +337,10 @@ def main():
                         if used:
                             newfn.append(f"{ws.title}!{c.coordinate} {','.join(used)}")
                     formula_sigs.setdefault(style_sig(c), []).append(f"{ws.title}!{c.coordinate}")
+                    for msg in short_sums(ws, c, f):
+                        sum_mismatch.append(msg)
+                    for msg in literal_tricks(f):
+                        hard.append(f"{ws.title}!{c.coordinate} {f[:80]}  <- {msg}")
                     for sh, coord in refs_in(f, ws.title):
                         if sh in wf.sheetnames:
                             if wf[sh][coord].value is None and wf[sh][coord].protection.locked:   # blank unlocked = input to fill
@@ -288,20 +361,6 @@ def main():
                                     if isinstance(x, (int, float)) and not isinstance(x, bool):
                                         tot += x
                             sum_checked += 1
-                            # a total that stops one cell short of its block (the classic "forgot December")
-                            nxt = []
-                            if r1 == r2:
-                                nxt = [(r1, c2 + 1), (r1, c1 - 1)]
-                            elif c1 == c2:
-                                nxt = [(r2 + 1, c1), (r1 - 1, c1)]
-                            for (nr, nc) in nxt:
-                                if nr < 1 or nc < 1 or (nr, nc) == (c.row, c.column):
-                                    continue
-                                nb = ws.cell(row=nr, column=nc).value
-                                hdr_like = isinstance(nb, str) and not nb.startswith("=")
-                                if nb is not None and not hdr_like and nc != c.column:
-                                    sum_mismatch.append(f"{ws.title}!{c.coordinate} {f} stops short: "
-                                                        f"{get_column_letter(nc)}{nr} next to the range is not included")
                             if abs(tot - cv) > max(0.01, abs(tot) * 1e-9):
                                 sum_mismatch.append(f"{ws.title}!{c.coordinate} shows {cv} but cells sum to {tot}")
                 elif isinstance(v, (int, float)) and not isinstance(v, bool) and ws.title not in opts["data"]:
@@ -347,11 +406,15 @@ def main():
             if run and (item[0] is None or item[0] != run[-1][0] + 1):
                 if len(run) >= 3:
                     runs_checked += 1
-                    rest = [x[1] for x in run[1:]]
-                    common = max(set(rest), key=rest.count)
-                    for x in run[1:]:
-                        if x[1] != common:
-                            incons.append(f"{sh}!{x[3]} {x[2][:60]} (row pattern: like {run[2][3] if run[2][1] == common else run[1][3]})")
+                    pats = [x[1] for x in run]
+                    common = max(set(pats), key=pats.count)
+                    # only a roll-forward row (it looks k periods back: C[-k]) may start with k different cells (openings)
+                    back = [int(b) for b in re.findall(r"C\[-(\d+)\]", common)]
+                    k = max(back) if back else 0
+                    model = next(x[3] for x in run if x[1] == common)
+                    for idx, x in enumerate(run):
+                        if x[1] != common and idx >= k:
+                            incons.append(f"{sh}!{x[3]} {x[2][:60]} (row pattern: like {model})")
                 run = []
             if item[0] is not None:
                 run.append(item)
@@ -409,44 +472,55 @@ def main():
         (F(f"{len(bad)} model check(s) not TRUE: " + " | ".join(bad[:6])) if bad else P(f"all {len(check_cells)} model checks TRUE"))
 
     # ---- mutation test: do the model's own checks notice a corrupted number? ----
-    # (a typed-over formula is the most common real spreadsheet error; identity-only checks never notice it)
-    if check_cells and wv and lo and opts["mutate"] > 0:
+    # Every calculation row (>=3 formulas) gets one cell typed over with a wrong number, in its own copy, recalculated
+    # in parallel LibreOffice instances. A row whose corruption no check notices is a row nobody is guarding.
+    if check_cells and wv and lo and opts["mutate"] != 0:
         check_sheets = {sh for sh, _, _ in check_cells}
-        cand = [(sh, row, cells) for (sh, row), cells in rowmap.items() if sh not in check_sheets and len(cells) >= 3]
+        cand = [(sh, row, cells) for (sh, row), cells in rowmap.items()
+                if sh not in check_sheets and len(cells) >= 3 and wf[sh].sheet_state == "visible"]
         cand.sort(key=lambda t: (wf.sheetnames.index(t[0]), t[1]))
-        k = min(opts["mutate"], len(cand))
-        picks = [cand[round(i * (len(cand) - 1) / max(1, k - 1))] for i in range(k)] if k else []
-        caught, missed = 0, []
+        if opts["mutate"] > 0 and opts["mutate"] < len(cand):
+            k = opts["mutate"]
+            cand = [cand[round(i * (len(cand) - 1) / max(1, k - 1))] for i in range(k)]
         mdir = out / "mutations"
         mdir.mkdir(exist_ok=True)
-        for i, (sh, row, cells) in enumerate(picks):
+        jobs = []
+        for n, (sh, row, cells) in enumerate(cand):
             col, _, _, coord = sorted(cells)[len(cells) // 2]
             v = wv[sh][coord].value
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 continue
             wm = openpyxl.load_workbook(src)
             wm[sh][coord].value = v * 1.1 + 1 if v else 1000
-            mp = mdir / f"mut_{i}.xlsx"
+            mp = mdir / f"mut_{n}.xlsx"
             wm.save(mp)
-            saved, _ = lo.recalc(mp)
+            jobs.append((mp, sh, row, coord))
+        workers = [lo] + [LO() for _ in range(min(3, max(0, len(jobs) - 1)))]
+        from concurrent.futures import ThreadPoolExecutor
+        def run(idx_job):
+            idx, (mp, sh, row, coord) = idx_job
+            saved, _ = workers[idx % len(workers)].recalc(mp)
             if not saved:
-                continue
+                return None
             wmv = openpyxl.load_workbook(mp, data_only=True)
-            hit = any(wmv[csh].cell(row=r, column=cc).value is not True for csh, r, cc in check_cells)
-            label = wf[sh].cell(row=row, column=1).value or ""
-            if hit:
-                caught += 1
-            else:
-                missed.append(f"{sh}!{coord} ({label})")
-        n = caught + len(missed)
+            return any(wmv[csh].cell(row=r, column=cc).value is not True for csh, r, cc in check_cells)
+        with ThreadPoolExecutor(max_workers=len(workers)) as ex:
+            # one job per worker at a time: a LibreOffice profile cannot serve two documents at once
+            res = []
+            for start in range(0, len(jobs), len(workers)):
+                batch = list(enumerate(jobs[start:start + len(workers)]))
+                res += list(ex.map(run, batch))
+        caught = [j for j, r in zip(jobs, res) if r]
+        missed = [f"{sh}!{coord} ({wf[sh].cell(row=row, column=1).value or ''})" for (mp, sh, row, coord), r in zip(jobs, res) if r is False]
+        n = len(caught) + len(missed)
         if n:
-            if caught == 0:
-                F(f"mutation test: typed over {n} calculated numbers and the model's checks stayed TRUE every time "
-                  "(they are identities that cannot fail). Add independent re-computations and sanity limits")
+            if missed and not opts.get("mutate_warn"):
+                F(f"mutation test: {len(missed)}/{n} calculation rows can be corrupted and every model check stays TRUE "
+                  "(add an independent check that covers them): " + " | ".join(missed[:8]))
             elif missed:
-                W(f"mutation test: checks caught {caught}/{n} corrupted numbers; NOT noticed: " + " | ".join(missed[:8]))
+                W(f"mutation test (--mutate-warn): checks miss {len(missed)}/{n} rows: " + " | ".join(missed[:8]))
             else:
-                P(f"mutation test: the model's checks caught all {n} corrupted numbers")
+                P(f"mutation test: corrupted one cell in each of {n} calculation rows; the model's checks caught every one")
         shutil.rmtree(mdir, ignore_errors=True)
 
     # ---- inputs styled distinctly ----
