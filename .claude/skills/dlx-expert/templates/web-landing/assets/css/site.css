@@ -165,7 +165,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
 .stack .s1 { width: 40%; inset-inline-start: 30%; z-index: 3; }
 .stack .s2 { width: 33%; inset-inline-start: 2%; bottom: 6%; z-index: 2; transform: rotate(-6deg); }
 .stack .s3 { width: 33%; inset-inline-end: 2%; bottom: 6%; z-index: 2; transform: rotate(6deg); }
-@media (max-width: 47.99em) {
+@media (max-width: 59.99em) {
   .hero { padding-top: var(--space-6); }
   .hero__grid { gap: 0; }
   .hero__copy { display: contents; }
@@ -185,7 +185,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
 }
 .hero__floor { height: var(--space-7); background: linear-gradient(180deg, transparent, var(--dark)); margin-top: calc(var(--space-7) * -1); position: relative; z-index: 4; }
 
-@media (min-width: 48em) {
+@media (min-width: 60em) {
   .hero { padding-block: var(--space-8) 0; }
   .hero__grid { grid-template-columns: 1.05fr 1fr; min-height: min(44rem, 82vh); }
   .hero__copy { padding-bottom: var(--space-8); }
@@ -218,7 +218,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
   scrollbar-width: thin;
 }
 .rail:focus-visible { box-shadow: var(--focus); }
-@media (max-width: 74.99em) { .rail { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14%); mask-image: linear-gradient(to right, transparent 0, #000 14%); /* RTL: ההמשך משמאל, אז הדהייה בשמאל בלבד */ } }
+@media (max-width: 74.99em) { .rail { -webkit-mask-image: linear-gradient(to right, rgb(0 0 0 / 0.35) 0, #000 9%); mask-image: linear-gradient(to right, rgb(0 0 0 / 0.35) 0, #000 9%); /* RTL: ההמשך משמאל, אז הדהייה בשמאל בלבד */ } }
 .rail > li { scroll-snap-align: start; }
 .product {
   height: 100%; display: flex; flex-direction: column;
@@ -229,7 +229,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
 .product__media { aspect-ratio: 1; position: relative; background: radial-gradient(circle at 50% 60%, var(--surface-2), var(--surface) 70%); border-radius: var(--r-md); margin-bottom: var(--space-4); }
 .product__media img.is-tall { height: 78%; max-height: 78%; }
 .product__media img { position: absolute; inset: 0; margin: auto; height: 84%; max-height: 84%; width: auto; max-width: 90%; object-fit: contain; filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.18)); }
-.product__name { font-size: var(--step-0); font-weight: 700; line-height: var(--lh-snug); min-height: calc(2em * 1.25); }
+.product__name { font-size: var(--step-0); font-weight: 700; line-height: var(--lh-snug); }
 .nowrap { white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .chip { font-size: var(--step--1); font-weight: 600; padding: 0.1em 0.6em; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink-2); direction: ltr; unicode-bidi: isolate; }
@@ -297,7 +297,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
 .step__num { font-size: var(--step-5); font-weight: 900; line-height: 1; color: var(--on-dark); display: flex; align-items: center; gap: var(--space-3); letter-spacing: -0.04em; margin-bottom: var(--space-4); font-variant-numeric: tabular-nums; }
 .step__num::after { content: ""; width: 1.5rem; height: 0.5rem; background: var(--brand); transform: skewX(-24deg); border-radius: 2px; }
 .step p { color: var(--on-dark-muted); margin-top: var(--space-2); }
-@media (min-width: 60em) { .steps { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 48em) { .steps { grid-template-columns: repeat(3, 1fr); } }
 
 /* ---------- הוכחה חברתית ---------- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-4); margin-bottom: var(--space-7); }
@@ -367,6 +367,7 @@ bdi, .ltr { direction: ltr; unicode-bidi: isolate; }
 .vendor__img img { height: 6.5rem; width: auto; filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.5)); }
 .vendor__img img + img { margin-inline-start: -1.25rem; height: 5.5rem; }
 .vendor h3 { font-size: var(--step-0); font-weight: 700; }
+@media (max-width: 59.99em) { .vendor { grid-template-columns: 1fr; margin-top: 0; } .vendor__img, .vendor h3, .vendor h3 + p { display: none; } .vendor ul { margin-top: 0; } } /* בטלפון הפוטר מיד אחרי: רק שורת הקשר */
 .vendor p { color: var(--on-dark-muted); font-size: var(--step--1); margin-top: var(--space-1); }
 .vendor ul { display: grid; margin-top: var(--space-2); font-size: var(--step--1); }
 .vendor li { min-height: var(--tap); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
