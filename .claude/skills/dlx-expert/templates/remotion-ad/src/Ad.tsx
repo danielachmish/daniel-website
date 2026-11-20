@@ -19,7 +19,7 @@ if (typeof document !== 'undefined') {
 export const FPS = 30;
 const BEAT = (60 / 115) * FPS;
 export const b = (n: number) => Math.round(n * BEAT);
-export const TOTAL_BEATS = 33.5;
+export const TOTAL_BEATS = 38.5;
 
 const C = {bg: '#0d110e', lime: '#84cc2d', white: '#f4f6f2'};
 const EASE_IN_OUT = Easing.bezier(0.65, 0, 0.35, 1);
@@ -90,20 +90,22 @@ const Pack: React.FC<{src: string; x: number; y: number; h: number; enter?: numb
     );
   };
 
-// 1. hook: macro on the last pack, it gets taken, pull back to an empty wall
+// 1. hook: a full shelf sells out pack by pack, then the last one goes
 const S1: React.FC = () => {
   const f = useCurrentFrame();
-  const z = interpolate(f, [b(1.4), b(3)], [2.3, 1.0], {...clamp, easing: EASE_IN_OUT});
-  const hooks: [number, number][] = [[200, 640], [540, 600], [880, 650], [260, 1060], [600, 1020], [900, 1080]];
+  const push = interpolate(f, [0, b(5)], [1.1, 1.0], {...clamp, easing: EASE_OUT});
+  const slots: [number, number, number][] = [[210, 720, 0], [540, 690, 1], [870, 730, 2], [260, 1120, 3], [600, 1090, 4], [900, 1140, 5]];
+  const order = [2, 0, 4, 5, 3, 1];
   return (
     <AbsoluteFill>
-      <AbsoluteFill style={{transform: `scale(${z})`, transformOrigin: '50% 47%'}}>
+      <AbsoluteFill style={{transform: `scale(${push})`, transformOrigin: '50% 55%'}}>
         <Slatwall />
-        {hooks.map(([x, y], i) => <Hook key={i} x={x} y={y} />)}
-        <Pack src="p3_cut.png" x={540} y={600} h={360} seed={1} exit={b(1)} />
+        {slots.map(([x, y], i) => <Hook key={'h' + i} x={x} y={y + 6} />)}
+        {slots.map(([x, y, p], i) => <Pack key={i} src={PRODUCTS[p]} x={x} y={y} h={330} seed={i} exit={Math.round(order.indexOf(i) * BEAT * 0.5)} />)}
       </AbsoluteFill>
-      <Headline words={[{t: 'המדף'}, {t: 'ריק.', accent: true}]} at={3} until={b(2.5)} size={160} />
-      <Headline words={[{t: 'שוב.'}]} at={b(2.5)} until={b(4.5)} size={160} />
+      <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(13,17,14,0.9) 0%, rgba(13,17,14,0) 32%)'}} />
+      <Headline words={[{t: 'המדף'}, {t: 'מתרוקן.', accent: true}]} at={3} until={b(3.2)} size={150} />
+      <Headline words={[{t: 'שוב.'}]} at={b(3.2)} until={b(5)} size={170} />
     </AbsoluteFill>
   );
 };
@@ -193,42 +195,113 @@ const S2: React.FC = () => {
   );
 };
 
-// 4. on the way: tracker reaches "arrived"
+// cardboard box in real 3D (perspective, shading, cardboard grain), flaps close, branded tape + logo stamp
+const Carton: React.FC<{lid: number; tape: number; stamp: number; w?: number}> = ({lid, tape, stamp, w = 560}) => {
+  const h = w * 0.62, d = w * 0.62;
+  const card = (shade: number) => ({position: 'absolute' as const, background: `linear-gradient(160deg, hsl(33,45%,${58 * shade}%), hsl(30,42%,${46 * shade}%))`,
+    backfaceVisibility: 'hidden' as const, boxShadow: 'inset 0 0 40px rgba(60,35,10,0.35)'});
+  return (
+    <div style={{position: 'relative', width: w, height: h, transformStyle: 'preserve-3d', transform: 'rotateX(-22deg) rotateY(-28deg)'}}>
+      {/* front */}
+      <div style={{...card(1), width: w, height: h, transform: `translateZ(${d / 2}px)`}}>
+        <svg width="100%" height="100%" style={{position: 'absolute', opacity: 0.35, mixBlendMode: 'multiply'}}><filter id="cg"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.6" numOctaves="2" seed="4" /></filter><rect width="100%" height="100%" filter="url(#cg)" /></svg>
+        <Img src={staticFile('logo_dark.png')} style={{position: 'absolute', left: w * 0.18, top: h * 0.4, width: w * 0.64, opacity: stamp, filter: 'brightness(0.15) sepia(0.4)',
+          transform: `scale(${1.5 - 0.5 * stamp})`}} />
+      </div>
+      {/* side */}
+      <div style={{...card(0.8), width: d, height: h, transform: `rotateY(90deg) translateZ(${w - d / 2}px)`, left: 0}} />
+      {/* top flaps */}
+      <div style={{...card(1.12), width: w, height: d / 2, top: 0, transformOrigin: '50% 0%', transform: `translateY(0px) translateZ(${-d / 2}px) rotateX(${90 + 120 * (1 - lid)}deg)`}} />
+      <div style={{...card(1.05), width: w, height: d / 2, top: 0, transformOrigin: '50% 0%', transform: `translateZ(${d / 2}px) rotateX(${90 - 120 * (1 - lid)}deg)`}} />
+      {/* tape across the top */}
+      <div style={{position: 'absolute', left: w * 0.44, width: w * 0.12, height: d, top: 0, background: '#151a15', transformOrigin: '50% 0%',
+        transform: `translateZ(${d / 2}px) rotateX(90deg) scaleY(${tape})`, boxShadow: '0 0 0 2px rgba(132,204,45,0.7)'}} />
+      <div style={{position: 'absolute', left: w * 0.44, width: w * 0.12, height: h * 0.45 * tape, top: 0, background: '#151a15', transform: `translateZ(${d / 2 + 1}px)`}} />
+    </div>
+  );
+};
+
+// 4. packed at the warehouse: real packs drop into the carton, it closes and gets the Aladin tape
 const S3: React.FC = () => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const steps = ['הוזמן', 'נארז', 'בדרך', 'הגיע'];
-  const inS = spring({frame: f, fps, config: {damping: 18, stiffness: 140}});
-  const push = interpolate(f, [0, b(6.5)], [1, 1.06], clamp);
-  const fill = interpolate(f, [b(1), b(4)], [0, 1], {...clamp, easing: EASE_IN_OUT});
+  const inS = spring({frame: f, fps, config: {damping: 16, stiffness: 120}});
+  const lid = interpolate(f, [b(2), b(2.5)], [0, 1], {...clamp, easing: EASE_IN_OUT});
+  const tape = interpolate(f, [b(2.6), b(3)], [0, 1], {...clamp, easing: EASE_OUT});
+  const stamp = spring({frame: f - b(3.2), fps, config: {damping: 12, stiffness: 200}});
+  const out = interpolate(f, [b(4.1), b(4.5)], [0, 1], {...clamp, easing: Easing.in(Easing.cubic)});
   return (
     <AbsoluteFill>
       <AbsoluteFill style={{background: C.bg}} />
-      <AbsoluteFill style={{background: 'radial-gradient(ellipse at 50% 55%, rgba(132,204,45,0.16), rgba(0,0,0,0) 62%)'}} />
-      <div style={{position: 'absolute', left: 60, right: 60, top: 640, height: 440, borderRadius: 48, background: 'rgba(255,255,255,0.07)',
-        border: '2px solid rgba(255,255,255,0.12)', direction: 'rtl', fontFamily, transform: `translateY(${(1 - inS) * 900}px) scale(${push})`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <div style={{position: 'relative', width: 820, display: 'flex', justifyContent: 'space-between'}}>
-          <div style={{position: 'absolute', left: 60, right: 60, top: 54, height: 10, background: 'rgba(255,255,255,0.15)', borderRadius: 10}} />
-          <div style={{position: 'absolute', right: 60, top: 54, height: 10, background: C.lime, borderRadius: 10, width: 700 * fill}} />
-          {steps.map((s, i) => {
-            const t = b(1 + i);
-            const on = f >= t;
-            const pop = spring({frame: f - t, fps, config: {damping: 9, stiffness: 220}});
-            return (
-              <div key={s} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, width: 140}}>
-                <div style={{width: 118, height: 118, borderRadius: 999, background: on ? C.lime : '#2a312b', transform: `scale(${on ? 0.75 + 0.25 * pop : 0.75})`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: on ? '0 0 40px rgba(132,204,45,0.5)' : 'none'}}>
-                  {on && <svg width="62" height="62" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#0d110e" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                </div>
-                <div style={{marginTop: 30, fontSize: 60, fontWeight: 900, color: on ? C.white : '#6c766d'}}>{s}</div>
-              </div>
-            );
-          })}
-        </div>
+      <AbsoluteFill style={{background: 'radial-gradient(ellipse at 50% 62%, rgba(255,214,150,0.16), rgba(0,0,0,0) 55%)'}} />
+      <div style={{position: 'absolute', left: 0, right: 0, top: 1420, height: 40, margin: '0 auto', width: 760, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', filter: 'blur(18px)'}} />
+      {[0, 1, 2].map((i) => {
+        const t0 = b(0.5 + i * 0.5);
+        const d = interpolate(f, [t0, t0 + 9], [0, 1], {...clamp, easing: Easing.in(Easing.quad)});
+        if (f < t0 || d >= 1) return null;
+        return <Img key={i} src={staticFile('products/' + PRODUCTS[i + 1])} style={{position: 'absolute', left: 330 + i * 140, top: 300 + d * 640, height: 300,
+          transform: `rotate(${(i - 1) * 10}deg)`, filter: `blur(${d * 3}px) drop-shadow(0 20px 20px rgba(0,0,0,0.5))`}} />;
+      })}
+      <div style={{position: 'absolute', left: 260, top: 940, perspective: 1800, transform: `translateY(${(1 - inS) * 900}px) translateX(${out * 1300}px)`, filter: `blur(${out * 8}px)`}}>
+        <Carton lid={lid} tape={tape} stamp={stamp} />
       </div>
-      <Headline words={[{t: 'בדרך'}, {t: 'אליך.'}]} at={b(0.4)} until={b(4.2)} size={140} />
-      <Headline words={[{t: 'הגיע'}, {t: 'לחנות.', accent: true}]} at={b(4.2)} size={140} />
+      <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(13,17,14,0.95) 0%, rgba(13,17,14,0) 30%)'}} />
+      <Headline words={[{t: 'נארז'}, {t: 'במחסן.', accent: true}]} at={b(0.3)} until={b(4.5)} size={140} />
+    </AbsoluteFill>
+  );
+};
+
+// cubic bezier point
+const bez = (t: number, p: number[][]) => [0, 1].map((k) => (1 - t) ** 3 * p[0][k] + 3 * (1 - t) ** 2 * t * p[1][k] + 3 * (1 - t) * t ** 2 * p[2][k] + t ** 3 * p[3][k]);
+
+// 5. on the way: the carton travels a route from the warehouse to the shop, steps light up along it
+const S3b: React.FC = () => {
+  const f = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const P = [[260, 960], [240, 740], [820, 930], [820, 690]]; // warehouse (bottom left) -> shop (top right, approached from below) // warehouse (bottom right) -> shop (top left)
+  const t = interpolate(f, [b(0.5), b(4.5)], [0, 1], {...clamp, easing: EASE_IN_OUT});
+  const [x, y] = bez(t, P);
+  const pathD = `M${P[0][0]},${P[0][1]} C${P[1][0]},${P[1][1]} ${P[2][0]},${P[2][1]} ${P[3][0]},${P[3][1]}`;
+  const LEN = 1400;
+  const push = interpolate(f, [0, b(6)], [1.0, 1.06], clamp);
+  const arrived = spring({frame: f - b(4.6), fps, config: {damping: 9, stiffness: 200}});
+  const steps: [string, number][] = [['הוזמן', 0], ['נארז', 0.3], ['בדרך', 0.62], ['הגיע', 1]];
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{background: C.bg}} />
+      <AbsoluteFill style={{transform: `scale(${push})`}}>
+        <svg width="1080" height="1920" style={{position: 'absolute'}}>
+          {Array.from({length: 30}, (_, i) => <line key={'h' + i} x1={0} x2={1080} y1={560 + i * 46} y2={560 + i * 46 + (i % 3) * 24} stroke="#1b231c" strokeWidth={i % 4 ? 3 : 9} />)}
+          {Array.from({length: 10}, (_, i) => <line key={'v' + i} y1={560} y2={1920} x1={60 + i * 110} x2={60 + i * 110 - (i % 2) * 60} stroke="#1b231c" strokeWidth={i % 3 ? 3 : 9} />)}
+          <path d={pathD} fill="none" stroke="rgba(132,204,45,0.18)" strokeWidth={18} strokeLinecap="round" />
+          <path d={pathD} fill="none" stroke={C.lime} strokeWidth={12} strokeLinecap="round" strokeDasharray={LEN} strokeDashoffset={LEN * (1 - t)} />
+        </svg>
+        {/* pins */}
+        {[[P[0], 'המחסן של אלדין'], [P[3], 'החנות שלך']].map(([pt, label], i) => (
+          <div key={i} style={{position: 'absolute', left: (pt as number[])[0] - 34, top: (pt as number[])[1] - 34, width: 68, height: 68, borderRadius: 999,
+            background: i === 1 && f >= b(4.6) ? C.lime : '#2a312b', border: `6px solid ${C.lime}`, transform: i === 1 ? `scale(${1 + 0.4 * arrived * (1 - Math.min(1, (f - b(4.6)) / 20))})` : 'none'}}>
+            <div style={{position: 'absolute', direction: 'rtl', fontFamily, fontWeight: 900, fontSize: 48, color: C.white, whiteSpace: 'nowrap',
+              ...(i === 0 ? {top: 76, left: -150, width: 368, textAlign: 'center'} : {top: 80, right: 70, textAlign: 'right'})}}>{label as string}</div>
+          </div>
+        ))}
+        {/* the carton on the route */}
+        <div style={{position: 'absolute', left: x - 80, top: y - 130, width: 160, height: 112, borderRadius: 10, background: 'linear-gradient(160deg,#cfa36a,#a87b45)',
+          boxShadow: '0 18px 30px rgba(0,0,0,0.55)', transform: `rotate(${Math.sin(f / 3) * 3}deg)`}}>
+          <div style={{position: 'absolute', left: 68, top: 0, width: 24, height: 112, background: '#151a15'}} />
+        </div>
+      </AbsoluteFill>
+      <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(13,17,14,0) 62%, rgba(13,17,14,0.85) 100%)'}} />
+      {/* steps strip */}
+      <div style={{position: 'absolute', left: 80, right: 80, top: 1150, display: 'flex', justifyContent: 'space-between', direction: 'rtl', fontFamily}}>
+        {steps.map(([s, at]) => {
+          const on = t >= at - 0.001 && f >= b(0.5);
+          return <div key={s} style={{display: 'flex', alignItems: 'center', gap: 12, fontSize: 52, fontWeight: 900, color: on ? C.white : '#5d665e'}}>
+            <span style={{width: 34, height: 34, borderRadius: 999, background: on ? C.lime : '#2a312b', display: 'inline-block'}} />{s}</div>;
+        })}
+      </div>
+      <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(13,17,14,0.95) 0%, rgba(13,17,14,0) 26%)'}} />
+      <Headline words={[{t: 'בדרך'}, {t: 'אליך.'}]} at={b(0.3)} until={b(4.6)} size={140} />
+      <Headline words={[{t: 'הגיע'}, {t: 'לחנות.', accent: true}]} at={b(4.6)} size={140} />
     </AbsoluteFill>
   );
 };
@@ -292,13 +365,14 @@ const Sfx: React.FC<{at: number; src: string; v?: number}> = ({at, src, v = 0.6}
   <Sequence from={at} durationInFrames={90}><Audio src={staticFile('sfx/' + src)} volume={v} /></Sequence>
 );
 
-const T = {s2: 4.5, s3: 14.5, s4: 21, s5: 29}; // scene starts, in beats
+const T = {s2: 5, s3: 15, s3b: 19.5, s4: 26, s5: 34}; // scene starts, in beats
 
 export const Ad: React.FC = () => (
   <AbsoluteFill style={{background: C.bg}}>
     <Sequence from={0} durationInFrames={b(T.s2)}><S1 /></Sequence>
     <Sequence from={b(T.s2)} durationInFrames={b(T.s3 - T.s2)}><S2 /></Sequence>
-    <Sequence from={b(T.s3)} durationInFrames={b(T.s4 - T.s3)}><S3 /></Sequence>
+    <Sequence from={b(T.s3)} durationInFrames={b(T.s3b - T.s3)}><S3 /></Sequence>
+    <Sequence from={b(T.s3b)} durationInFrames={b(T.s4 - T.s3b)}><S3b /></Sequence>
     <Sequence from={b(T.s4)} durationInFrames={b(T.s5 - T.s4)}><S4 /></Sequence>
     <Sequence from={b(T.s5)} durationInFrames={b(TOTAL_BEATS - T.s5)}><S5 /></Sequence>
     <Vignette />
@@ -306,9 +380,8 @@ export const Ad: React.FC = () => (
     <Audio src={staticFile('music.wav')} volume={(f) =>
       interpolate(f, [b(T.s4 - 0.6), b(T.s4 - 0.5), b(T.s4) - 1, b(T.s4)], [1, 0.12, 0.12, 1], clamp) *
       interpolate(f, [b(TOTAL_BEATS) - 10, b(TOTAL_BEATS)], [1, 0], clamp)} />
-    <Sfx at={2} src="pop_hard.mp3" v={0.55} />
-    <Sfx at={b(1)} src="whoosh_fast.mp3" v={0.55} />
-    <Sfx at={b(2.5)} src="pop_hard.mp3" v={0.45} />
+    {[0, 0.5, 1, 1.5, 2, 2.5].map((x, i) => <Sfx key={'s' + i} at={b(x)} src="sweep_small.mp3" v={0.32} />)}
+    <Sfx at={b(3.2)} src="pop_hard.mp3" v={0.5} />
     <Sfx at={b(T.s2) - 4} src="swoosh_trans.mp3" v={0.6} />
     <Sfx at={b(T.s2 + 3.3)} src="sweep_small.mp3" v={0.45} />
     {Array.from({length: 10}, (_, i) => <Sfx key={'q' + i} at={b(T.s2 + 4.5) + Math.round(i * (b(2) / 10))} src="ui_click.mp3" v={0.25 + i * 0.04} />)}
@@ -316,8 +389,13 @@ export const Ad: React.FC = () => (
     <Sfx at={b(T.s2 + 7.5)} src="select_click.mp3" v={0.7} />
     <Sfx at={b(T.s2 + 8)} src="notify.mp3" v={0.65} />
     <Sfx at={b(T.s3) - 4} src="whoosh_fast.mp3" v={0.55} />
-    {[1, 2, 3, 4].map((x) => <Sfx key={'t' + x} at={b(T.s3 + x)} src="tech_select.mp3" v={0.55} />)}
-    <Sfx at={b(T.s3 + 4.2)} src="pop_hard.mp3" v={0.5} />
+    {[0.5, 1, 1.5].map((x, i) => <Sfx key={'d' + i} at={b(T.s3 + x) + 8} src="pop_hard.mp3" v={0.35} />)}
+    <Sfx at={b(T.s3 + 2)} src="sweep_small.mp3" v={0.5} />
+    <Sfx at={b(T.s3 + 2.6)} src="swoosh_trans.mp3" v={0.45} />
+    <Sfx at={b(T.s3 + 3.2)} src="impact.mp3" v={0.25} />
+    <Sfx at={b(T.s3b) - 4} src="whoosh_fast.mp3" v={0.5} />
+    {[0.5, 1.7, 3, 4.5].map((x, i) => <Sfx key={'r' + i} at={b(T.s3b + x)} src="tech_select.mp3" v={0.55} />)}
+    <Sfx at={b(T.s3b + 4.6)} src="notify.mp3" v={0.6} />
     <Sfx at={b(T.s4) - 2} src="impact.mp3" v={0.6} />
     {Array.from({length: 11}, (_, i) => <Sfx key={'p' + i} at={b(T.s4) + Math.round(i * BEAT * 0.25) + 6} src="ui_click.mp3" v={0.3} />)}
     <Sfx at={b(T.s5) - 3} src="whoosh_fast.mp3" v={0.5} />
