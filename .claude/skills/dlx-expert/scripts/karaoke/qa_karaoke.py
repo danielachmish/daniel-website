@@ -317,6 +317,65 @@ def check_loudness(T):
     return out
 
 
+
+# ----------------------------------------------------------------------------------- layout
+ASS_T = re.compile(r"(\d+):(\d\d):(\d\d)\.(\d\d)")
+
+
+def ass_sec(t):
+    h, m, s_, cs = map(int, ASS_T.match(t).groups())
+    return h * 3600 + m * 60 + s_ + cs / 100
+
+
+def check_layout(T):
+    """(1) the .ass itself: no two lyric events at the same position at the same time (ghosted text);
+    (2) no two text boxes (lyrics, count-in dots, title) intersect while both are on screen;
+    (3) every box inside the frame with a 3% margin; never more than 2 lyric lines on screen."""
+    out = {}
+    for o in T["outputs"]:
+        fmt, W, H = o["format"], o["width"], o["height"]
+        evs = []
+        for ln in Path(o["ass"]).read_text(encoding="utf-8-sig").splitlines():
+            if not ln.startswith("Dialogue:"):
+                continue
+            f = ln.split(",", 9)
+            m = re.search(r"\\pos\(([-\d.]+),([-\d.]+)\)", f[9])
+            evs.append(dict(style=f[3], start=ass_sec(f[1]), end=ass_sec(f[2]),
+                            pos=(round(float(m.group(1))), round(float(m.group(2)))) if m else None))
+        lyr = sorted([e for e in evs if e["style"] == "Lyric"], key=lambda e: e["start"])
+        same = []
+        for i, a in enumerate(lyr):
+            for b in lyr[i + 1:]:
+                if b["start"] >= a["end"]:
+                    continue
+                if a["pos"] == b["pos"]:
+                    same.append(f"{a['start']:.2f}-{a['end']:.2f} & {b['start']:.2f}-{b['end']:.2f} at {a['pos']}")
+        # max simultaneous lyric lines
+        pts = sorted([(e["start"], 1) for e in lyr] + [(e["end"], -1) for e in lyr], key=lambda x: (x[0], x[1]))
+        cur = mx = 0
+        for _, d in pts:
+            cur += d
+            mx = max(mx, cur)
+        inter, outside = [], []
+        bx = o.get("boxes", [])
+        for i, a in enumerate(bx):
+            x0, y0, x1, y1 = a["box"]
+            if x0 < W * 0.03 or x1 > W * 0.97 or y0 < 0 or y1 > H:
+                outside.append(f"{a['kind']} {a['start']:.2f}s {a['box']}")
+            for b in bx[i + 1:]:
+                if min(a["end"], b["end"]) - max(a["start"], b["start"]) <= 0.02:
+                    continue
+                X0, Y0, X1, Y1 = b["box"]
+                if x0 < X1 - 4 and X0 < x1 - 4 and y0 < Y1 - 4 and Y0 < y1 - 4:
+                    inter.append(f"{a['kind']}@{a['start']:.2f}s x {b['kind']}@{b['start']:.2f}s")
+        fail = bool(same or inter or outside or mx > 2)
+        res("FAIL" if fail else "PASS", f"layout[{fmt}]",
+            f"{len(lyr)} lyric events; same-position overlaps {len(same)}; box intersections {len(inter)}; "
+            f"outside frame {len(outside)}; max lines on screen {mx}"
+            + (f" | e.g. {(same + inter + outside)[:3]}" if fail else ""))
+        out[fmt] = dict(same_position_overlaps=same, box_intersections=inter, outside=outside, max_lines=mx)
+    return out
+
 # --------------------------------------------------------------------------------- (e) frames
 def hex_rgb(h):
     h = h.lstrip("#")
@@ -384,8 +443,9 @@ def check_frames(T, qa_dir):
             p = fr_dir / f"{o['format']}_line{i:03d}_{t:07.2f}.png"
             grab(o["mp4"], t, p); shots.append(p)
             im = np.asarray(Image.open(p).convert("RGB")).astype(float)
-            y = ys_for(o, L["slot"])
-            fs = L.get("font_size", 80)
+            g = L.get("geo", {}).get(f"{o['width']}x{o['height']}", {})
+            y = g.get("y", ys_for(o, L["slot"]))
+            fs = g.get("font_size", 80)
             y0, y1 = int(max(0, y - fs * 0.75)), int(min(im.shape[0], y + fs * 0.75))
             band = im[y0:y1]
             ds = np.linalg.norm(band - sung, axis=2)
@@ -398,7 +458,7 @@ def check_frames(T, qa_dir):
                 out["direction"].append(dict(line=i, t=round(t, 2), fmt=o["format"], sung_x=round(xs), unsung_x=round(xu), ok=bool(ok)))
                 dir_fail += 0 if ok else 1
             # OCR on a frame where the line is visible (same frame)
-            half = L.get("width_px", o["width"] * 0.8) / 2 + 30
+            half = g.get("width_px", o["width"] * 0.8) / 2 + 30
             box = (int(max(0, o["width"] / 2 - half)), y0, int(min(o["width"], o["width"] / 2 + half)), y1)
             txt = ocr_line(p, box, T["lang"])
             if txt is not None:
@@ -467,7 +527,7 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-bleed-model", action="store_true")
     ap.add_argument("--shift", type=float, default=0.0)
-    ap.add_argument("--skip", default="", help="comma list of checks to skip: sync,bleed,pitch,loudness,frames")
+    ap.add_argument("--skip", default="", help="comma list of checks to skip: sync,bleed,pitch,loudness,layout,frames")
     a = ap.parse_args()
     T = json.loads(Path(a.timing).read_text(encoding="utf-8"))
     qa_dir = Path(a.out or Path(a.timing).parent / "qa")
@@ -486,6 +546,8 @@ def main():
             report["pitch"] = check_pitch(T)
         if "loudness" not in skip:
             report["loudness"] = check_loudness(T)
+        if "layout" not in skip:
+            report["layout"] = check_layout(T)
         if "frames" not in skip:
             report["frames"] = check_frames(T, qa_dir)
     report["results"] = [dict(level=l, check=n, msg=m) for l, n, m in RESULTS]

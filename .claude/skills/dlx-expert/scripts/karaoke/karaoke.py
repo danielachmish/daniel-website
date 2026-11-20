@@ -356,16 +356,24 @@ def schedule(lines, beat):
             ci = next(c for c in countins if c["line"] == i)
             appear = min(appear, ci["start"]) if ci["start"] > appear else ci["start"] - 0.5
             appear = max(appear, L["start"] - LEAD_MAX - 0.5)
-        # previous line in the same slot must be gone; previous passage must be finished
-        prev_same = [lines[j] for j in range(i) if lines[j]["slot"] == L["slot"]]
-        if prev_same:
-            appear = max(appear, prev_same[-1]["disappear"] + 0.04)
+        # one line per slot at any time: wait for the previous line in this slot to leave; if that is too late
+        # (fast singing), cut the previous line short - it is already fully sung (the other slot lies between).
+        prev_same = next((lines[j] for j in range(i - 1, -1, -1) if lines[j]["slot"] == L["slot"]), None)
+        if prev_same is not None:
+            appear = max(appear, prev_same["disappear"] + 0.04)
         if i and L.get("countin"):
             appear = max(appear, lines[i - 1]["disappear"] + 0.04)
         appear = max(0.0, min(appear, L["start"] - 0.25))
+        if prev_same is not None:
+            appear = max(appear, prev_same["end"] + 0.06)  # never before the old line is sung
+            prev_same["disappear"] = round(min(prev_same["disappear"], appear - 0.04), 3)
         L["appear"] = round(appear, 3)
-        L["disappear"] = round(max(L["disappear"], L["appear"] + 0.5), 3)
-        # partner line (other slot) shown while this one is sung = next-line preview
+        L["disappear"] = round(max(L["disappear"], L["end"] + 0.05), 3)
+    # hard guarantee (QA re-checks it in the .ass): no two lines share a slot at the same time
+    for i, L in enumerate(lines):
+        nxt = next((M for M in lines[i + 1:] if M["slot"] == L["slot"]), None)
+        if nxt is not None and L["disappear"] > nxt["appear"] - 0.02:
+            L["disappear"] = round(max(L["end"], nxt["appear"] - 0.04), 3)
     return countins
 
 
@@ -457,17 +465,20 @@ Style: Sub,{FONT_NAME},{int(base_fs * 0.6)},{ass_color('#C9D2E8')},{ass_color('#
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     ev = []
+    boxes = []  # (kind, start, end, x0, y0, x1, y1) - written to timing.json, QA checks overlaps
     cx = W / 2
     geo = []
+    fmt = f"{W}x{H}"
     for L in lines:
         txt = " ".join(words[j]["text"] for j in L["words"])
         fs = base_fs
         while meas.width(txt, fs) > max_w and fs > 40:
             fs -= 2
-        L["font_size"] = fs
-        L["width_px"] = round(meas.width(txt, fs))
+        wpx = round(meas.width(txt, fs))
         y = ys[L["slot"]]
-        geo.append((fs, y))
+        geo.append((fs, y, wpx))
+        L.setdefault("geo", {})[fmt] = {"font_size": fs, "width_px": wpx, "x": round(cx), "y": round(y)}
+        boxes.append(("lyric", L["appear"], L["disappear"], cx - wpx / 2, y - fs * 0.55, cx + wpx / 2, y + fs * 0.55))
         parts = []
         t = L["appear"]
         lead = max(0.0, L["start"] - t)
@@ -503,8 +514,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     # count-in dots: above the upcoming line, on the side where reading starts
     for c in countins:
         L = lines[c["line"]]
-        fs, y = geo[c["line"]]
-        half = L["width_px"] / 2
+        fs, y, wpx = geo[c["line"]]
+        half = wpx / 2
         x = cx + half - fs * 0.6 if rtl else cx - half + fs * 0.6
         dy = y - fs * 0.95
         an = 6 if rtl else 4  # anchor right (RTL) / left (LTR)
@@ -512,15 +523,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             a = c["end"] - k * c["beat"]
             b = a + c["beat"]
             dots = " ".join(["●"] * k)
+            dw = fs * 0.5 * (1.4 * k)
+            boxes.append(("dots", a, b, x - dw if rtl else x, dy - fs * 0.3, x if rtl else x + dw, dy + fs * 0.3))
             ev.append(f"Dialogue: 2,{ass_time(a)},{ass_time(b)},Dots,,0,0,0,,{{\\an{an}\\pos({x:.0f},{dy:.0f})}}{dots}")
     # title card during the intro
     if title and lines and lines[0]["appear"] > 2.0:
         end = lines[0]["appear"] - 0.1
         ty = H * (0.40 if not vertical else 0.38)
+        tw = meas.width(title, base_fs * 1.15)
+        boxes.append(("title", 0.3, end, cx - tw / 2, ty - base_fs * 0.65, cx + tw / 2, ty + base_fs * 0.65))
         ev.append(f"Dialogue: 0,{ass_time(0.3)},{ass_time(end)},Title,,0,0,0,,{{\\fad(400,400)\\an5\\pos({cx:.0f},{ty:.0f})}}{RLM if HEB_RE.search(title) else ''}{esc(title)}")
         if artist:
             ev.append(f"Dialogue: 0,{ass_time(0.3)},{ass_time(end)},Sub,,0,0,0,,{{\\fad(400,400)\\an5\\pos({cx:.0f},{ty + base_fs * 1.1:.0f})}}{RLM if HEB_RE.search(artist) else ''}{esc(artist)}")
-    return hdr + "\n".join(ev) + "\n"
+    return hdr + "\n".join(ev) + "\n", [dict(kind=b[0], start=round(b[1], 3), end=round(b[2], 3),
+                                              box=[round(v) for v in b[3:]]) for b in boxes]
 
 
 # --------------------------------------------------------------------------------------------
@@ -666,13 +682,13 @@ def main():
     t = time.time()
     for f in [x.strip() for x in a.formats.split(",") if x.strip()]:
         W, H = (1920, 1080) if f == "16x9" else (1080, 1920)
-        ass_txt = build_ass(lines, words, countins, W, H, rtl, a.title, a.artist, draft)
+        ass_txt, boxes = build_ass(lines, words, countins, W, H, rtl, a.title, a.artist, draft)
         ass_path = out / f"{base}-{f}.ass"
         ass_path.write_text(ass_txt, encoding="utf-8-sig")
         mp4 = out / f"{base}-karaoke-{tag}-{f}{'-DRAFT' if draft else ''}.mp4"
         log(f"rendering {mp4.name} ...")
         render(ass_path, final_audio, a.bg, W, H, mp4, dur)
-        outputs.append({"format": f, "mp4": str(mp4), "ass": str(ass_path), "width": W, "height": H})
+        outputs.append({"format": f, "mp4": str(mp4), "ass": str(ass_path), "width": W, "height": H, "boxes": boxes})
     T["render_s"] = round(time.time() - t, 1)
     T["total_s"] = round(time.time() - t0, 1)
 
@@ -686,7 +702,7 @@ def main():
         "loudness": {"lufs": float(loud["input_i"]), "true_peak": float(loud["input_tp"])},
         "words": words,
         "lines": [{k: L[k] for k in ("text", "words", "start", "end", "appear", "disappear", "slot", "section",
-                                     "font_size", "width_px") if k in L} for L in lines],
+                                     "geo") if k in L} for L in lines],
         "countins": countins, "outputs": outputs, "timings_s": T,
         "uncertain_words": [dict(i=i, **w) for i, w in enumerate(words) if (w.get("prob") or 0) < 0.5],
     }
