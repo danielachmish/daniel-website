@@ -1,0 +1,17 @@
+{
+  "name": "dlx-remotion-ad",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "stills": "node stills.mjs stills 2 45 110 175 235 300 370 430 490",
+    "render": "node render.mjs out/raw.mp4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.545",
+    "@remotion/cli": "4.0.545",
+    "@remotion/renderer": "4.0.545",
+    "remotion": "4.0.545",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
