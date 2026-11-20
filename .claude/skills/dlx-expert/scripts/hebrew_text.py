@@ -35,6 +35,9 @@ HARD_LEFTOVER = re.compile(r"\{\{[^}]*\}\}|\bTODO\b|\bTBD\b|\bXXX\b|[Ll]orem ips
 _TOK = r"(?:(?:0?[1-9]|1[0-2])/(?:19|20)\d\d|(?:19|20)\d\d|\d{1,2}:\d\d|\d{1,2})"
 _RANGE = re.compile(r"(?<![\d–./:\u202a\u2060])(?<!\d-)(" + _TOK + r")\s*\u2060?[-–—]\u2060?\s*(" + _TOK + r"|היום|כיום|הווה)"
                     r"(?![\d\-–\u05d0-\u05ea])(?![.:/]\d)")
+_PREFIX_LATIN = re.compile(r"(?<![\u05d0-\u05ea])([ובכלמהש]{1,3})-(?=[A-Za-z0-9\u202a])")
+CURRENT_RANGE = re.compile(r"[–\-]\u2060?\s*(?:היום|כיום|הווה|present|Present)")
+CASE_LAW = re.compile(r"(?:רע\"פ|ע\"פ|בג\"ץ|רע\"א|ע\"א|ת\"א|תת\"ע|ע\"מ|עת\"מ|בר\"ע)\s*[\d\-/]{4,}")
 _PRODUCT_NUM = re.compile(r"\b([A-Z][A-Za-z.]*[A-Za-z](?: [A-Z][A-Za-z.]*[A-Za-z])*) (\d{1,3})\b(?![%:/.,\-–]\d)")
 _ABBR = re.compile(r"(\b[A-Za-z]{1,4}\.(?:[A-Za-z]{1,4}\.)+)(?!‎)(?=\s)")
 _PLUSLANG = re.compile(r"(?<![\w‎])([A-Za-z][A-Za-z0-9]*(?:\+\+|#))(?!‎)")
@@ -67,6 +70,7 @@ def bidi_fix(s: str) -> str:
         return s
     s = _RANGE.sub(_range_sub, s)               # always: even a line that is only "2018-2020" sits in RTL text
     s = _PRODUCT_NUM.sub(lambda m: f"{m.group(1)}\u00a0{m.group(2)}", s)
+    s = _PREFIX_LATIN.sub(lambda m: m.group(1) + "-\u2060", s)   # "ב-Google": the prefix never ends a line
     if not has_hebrew(s) and not _INTL_PHONE.search(s) and " · " not in s and " | " not in s:
         return s
     s = _ABBR.sub(lambda m: m.group(1) + LRM, s)
@@ -85,6 +89,8 @@ def bidi_problems(s: str):
     for m in _RANGE.finditer(s):
         if _range_sub(m) != m.group(0):
             out.append(("טווח בלי עטיפת LRE (יוצג בכיוון אחר משאר הטווחים)", m.group(0)))
+    for m in _PREFIX_LATIN.finditer(s):
+        out.append(("קידומת עברית ומקף בלי הדבקה (\"ב-\" עלול להישאר בסוף שורה)", m.group(0) + "..."))
     for m in _PRODUCT_NUM.finditer(s):
         out.append(("שם מוצר ומספר עם רווח רגיל (המספר עלול לפתוח שורה לבד)", m.group(0)))
     if not has_hebrew(s):

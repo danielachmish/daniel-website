@@ -46,7 +46,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import json  # noqa: E402
 from hebrew_text import (HARD_LEFTOVER, HEB, OLD_MARKER, PLACEHOLDER, bidi_problems, find_claims,  # noqa: E402
-                         find_dummies, has_hebrew)
+                         find_dummies, has_hebrew, CURRENT_RANGE, CASE_LAW)
 
 VAT_RATE = 18  # Israel, from 1.1.2025 (רשות המסים). Verified 11/2026 - re-check every January.
 AI_CLICHES = ["בעולם המשתנה", "חשוב לציין", "לסיכום ניתן לומר", "הנני לפנות", "בעידן של היום", "מהווה פתרון",
@@ -102,6 +102,14 @@ def check_text(paras, kind=None):
         for k, snip in find_dummies(p):
             if snip not in supplied:
                 log("FAIL", f"{k} בלי סימון: '{snip}'. פרט שלא נמסר מהלקוח = [לאשר: ...], או להוסיף ל-supplied")
+    for p in paras:
+        if CURRENT_RANGE.search(p):
+            log("FAIL", f"טווח שמסתיים ב'היום': '{p.strip()[:50]}'. כותבים 'מ-2025 (נוכחי)', בלי טווח")
+    primary = " ".join(x.get("source", "") for x in SOURCES if x.get("primary"))
+    for m in CASE_LAW.finditer(full):
+        if m.group(0) not in " ".join(x.get("claim", "") for x in SOURCES if x.get("primary")):
+            log("FAIL", f"פסיקה בלי אימות במקור ראשוני ('{m.group(0)}'): מאתר הרשות השופטת או מנבו, עם "
+                        "\"primary\": true ב-sources. לא נבדק? מוחקים, לא מסמנים")
     if TRACKING.search(full) and not re.search(r"עוגיות|קוקיז|cookies", full, re.I):
         log("FAIL", "יש כלי מעקב (פיקסל / Analytics) בלי שורת הסכמה לעוגיות (באנר עוגיות ומדיניות)")
     if kind == "cv":
@@ -525,12 +533,15 @@ def check_visual(pdf, source_texts):
             segs.append(cur)
             for seg in segs:
                 vis = "".join(seg).replace("\u00a0", " ")
+                if has_hebrew(vis) and re.search(r"(?:^|\s)[ובכלמהש]{1,3}-$", reading_order(vis).strip()):
+                    bad.append((pi, "שורה שנגמרת בקידומת ומקף: " + reading_order(vis).strip()[-30:]))
                 if not has_hebrew(vis) or not re.search(r"[A-Za-z0-9]", vis):
                     continue
                 checked += 1
                 ro = norm(reading_order(vis))
                 if ro and ro not in src:
                     bad.append((pi, reading_order(vis).strip()))
+
     for pi, t in bad[:8]:
         log("FAIL", f"סדר קריאה שבור ברינדור (עמוד {pi}): '{t[:70]}'")
     dirs = {"ltr": [], "rtl": []}

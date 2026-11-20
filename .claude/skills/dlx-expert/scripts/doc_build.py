@@ -47,6 +47,7 @@ INK, MUTED, RULE, PANEL = "1B1F24", "5B6470", "D5DAE1", "F3F5F8"
 AMBER_BG = "FFE7A3"  # placeholder highlight
 BRAND = "1F4E79"
 SCALE = 1.0          # set by the fit loop in main(): grows/shrinks every size and gap together
+RTL = True           # False for the English CV version (spec "lang": "en")
 
 
 def rgb(h):
@@ -111,7 +112,8 @@ def style_run(run, size=10.5, bold=False, color=INK, font=None, highlight=False,
 def para(container, text="", size=10.5, bold=False, color=INK, font=None, align=None, before=0, after=4,
          line=1.15, keep_next=False):
     p = container.add_paragraph()
-    _pPr_bidi(p)
+    if RTL:
+        _pPr_bidi(p)
     pf = p.paragraph_format
     pf.space_before, pf.space_after, pf.line_spacing = Pt(before * SCALE), Pt(after * SCALE), line
     if keep_next:
@@ -269,9 +271,8 @@ def new_doc(margins_cm=(2.0, 2.0, 2.0, 2.0)):
     s = d.sections[0]
     s.page_height, s.page_width = Cm(29.7), Cm(21.0)
     s.top_margin, s.bottom_margin, s.right_margin, s.left_margin = [Cm(x) for x in margins_cm]
-    sp = s._sectPr
-    b = OxmlElement("w:bidi")
-    sp.append(b)
+    if RTL:
+        s._sectPr.append(OxmlElement("w:bidi"))
     # Normal style: RTL + fonts + cs size, so empty paragraphs and table cells inherit them too
     st = d.styles["Normal"]
     st.font.name, st.font.size = FONT_BODY, Pt(10.5)
@@ -282,9 +283,9 @@ def new_doc(margins_cm=(2.0, 2.0, 2.0, 2.0)):
     szcs = OxmlElement("w:szCs")
     szcs.set(qn("w:val"), "21")
     rPr.append(szcs)
-    pPr = st.element.get_or_add_pPr()
-    pPr.append(OxmlElement("w:bidi"))
-    d.core_properties.language = "he-IL"
+    if RTL:
+        st.element.get_or_add_pPr().append(OxmlElement("w:bidi"))
+    d.core_properties.language = "he-IL" if RTL else "en-US"
     return d
 
 
@@ -308,7 +309,10 @@ TEXT_W_CV = 21.0 - 2 * 1.7
 def bullets(d, items, brand, size=10.5, after=1.5, indent=0.4, keep=True):
     for k, ln in enumerate(items):
         bp = para(d, "", size=size, after=after, line=1.2, keep_next=keep and k < len(items) - 1)
-        bp.paragraph_format.right_indent = Cm(indent)       # RTL: "right" is the start side
+        if RTL:
+            bp.paragraph_format.right_indent = Cm(indent)   # RTL: "right" is the start side
+        else:
+            bp.paragraph_format.left_indent = Cm(indent)
         bp.paragraph_format.first_line_indent = Cm(-indent)
         style_run(bp.add_run("•  "), size=size, color=brand, bold=True)
         add_rich(bp, ln, size=size)
@@ -322,6 +326,8 @@ def set_sources(d, spec):
         d.core_properties.comments = json.dumps(meta, ensure_ascii=False)
 
 
+DEFAULT_CANCEL = ("ביטול: כל צד יכול לבטל בהודעה בכתב. משלמים על אבני הדרך שהושלמו ועל העבודה שבוצעה עד יום "
+                  "הביטול, ומה שנמסר עד אז שייך לכם. ביטול לפני תחילת העבודה: המקדמה מוחזרת במלואה.")
 LEGAL_DISCLAIMER = ("זה לא ייעוץ משפטי. המכתב הוא טיוטה שהוכנה לפי המידע שמסרת. לפני הגשה, ובמיוחד כשיש סכום גבוה, "
                     "נקודות, או כשהבקשה נדחית ושוקלים בקשה להישפט, כדאי להתייעץ עם עו\"ד בתחום (או לפנות לסיוע "
                     "המשפטי של משרד המשפטים אם יש זכאות).")
@@ -332,6 +338,8 @@ def build_cv(spec, out):
     """Single column; dates sit on the org line in the text flow (no tab stops, so ATS parsers keep role, org
     and dates together); body 10.5pt minimum; the fit loop in main() scales it up to fill the page."""
     brand = spec.get("brand", {}).get("color", BRAND)
+    if spec.get("tech") and not any(re.search(r"github|linkedin", c, re.I) for c in spec["contact"]):
+        sys.exit("CV for a tech role: GitHub and/or LinkedIn links are required inputs. Ask the client first.")
     d = new_doc(margins_cm=(1.5, 1.4, 1.7, 1.7))
     para(d, spec["name"], size=24, bold=True, color=INK, font=FONT_HEAD, after=0, line=1.0)
     para(d, spec["title"], size=13, bold=True, color=brand, font=FONT_HEAD, after=3)
@@ -435,6 +443,9 @@ def build_quote(spec, out):
         panel(d, "היעד שנמדוד", spec["goal"] if isinstance(spec["goal"], list) else [spec["goal"]], brand)
     if spec.get("proof"):
         panel(d, "עבודות דומות", spec["proof"], brand, size=10)
+    elif spec.get("guarantee"):   # no portfolio to show: a concrete commitment instead of empty proof slots
+        panel(d, "ההתחייבות שלנו", spec["guarantee"] if isinstance(spec["guarantee"], list) else [spec["guarantee"]],
+              brand, size=10.5)
     if spec.get("packages"):  # optional anchor: lean vs full, so the client compares options, not "yes/no"
         panel(d, "שתי דרכים לעשות את זה", [f"**{pk['name']}: {pk['price']}.** {pk['what']}" for pk in spec["packages"]],
               brand, size=10.5)
@@ -492,8 +503,13 @@ def build_quote(spec, out):
     col_widths(t, [10.8, 3.8, 2.8])
     rows_keep(t, header=False)
 
-    for key, title in (("compliance", "נגישות ופרטיות"), ("excluded", "מה לא כלול"), ("timeline", "לוח זמנים"),
-                       ("payment", "תנאי תשלום"), ("warranty", "אחריות, אחסון ותחזוקה"), ("terms", "תנאים")):
+    terms = list(spec.get("terms", []))
+    if not any("ביטול" in x for x in terms):
+        terms.append(DEFAULT_CANCEL)
+    spec = dict(spec, terms=terms)
+    for key, title in (("compliance", "נגישות, פרטיות ועוגיות"), ("client_provides", "מה אתם מספקים"),
+                       ("excluded", "מה לא כלול"), ("timeline", "לוח זמנים"), ("payment", "תנאי תשלום"),
+                       ("warranty", "אחריות, אחסון, דומיין ותחזוקה"), ("terms", "תנאים")):
         if spec.get(key):
             section_title(d, title, brand)
             bullets(d, spec[key], brand, size=10.5)
@@ -529,8 +545,9 @@ def build_letter(spec, out):
     p = para(d, " · ".join(s.get("lines", [])), size=10, color=MUTED, after=10)
     border(p, "bottom", color=RULE, sz=4, space=6)
     para(d, spec["date"], size=10.5, align="end", after=10)
-    if spec.get("delivery"):
-        para(d, spec["delivery"], size=10, bold=True, color=MUTED, after=6)
+    delivery = spec.get("submission", {}).get("channel_label") or spec.get("delivery")
+    if delivery:   # one source of truth: the same channel the client checklist tells them to use
+        para(d, delivery, size=10, bold=True, color=MUTED, after=6)
     for i, ln in enumerate(spec["to"]):
         para(d, ln, size=10.5, bold=(i == 1), after=0)
     para(d, "", after=8)
@@ -608,6 +625,8 @@ def build_checklist(spec, out):
         if sub.get(key):
             section_title(d, title, brand)  # noqa
             items = sub[key] if isinstance(sub[key], list) else [sub[key]]
+            if key == "channel" and sub.get("channel_label"):
+                items = [f"**{sub['channel_label']}** (כמו שכתוב במכתב)."] + items
             boxes = [("☐  " + x) for x in items] if key in ("before_sending", "proof") else items
             for k, x in enumerate(boxes):
                 para(d, x, size=11, after=3, line=1.25, keep_next=k < len(boxes) - 1)
@@ -652,7 +671,7 @@ def suggested_name(spec):
     if spec["type"] == "quote":
         return f"הצעת-מחיר-{clean(spec['number'])}-{clean(spec['client']['name'])}-{clean(spec['dealer']['name'])}"
     if spec["type"] == "cv":
-        return f"קורות-חיים-{clean(spec['name'])}"
+        return (f"CV-{clean(spec['name'])}" if spec.get("lang") == "en" else f"קורות-חיים-{clean(spec['name'])}")
     return f"{clean(spec['subject'])}-{clean(spec['sender']['name'])}"
 
 
@@ -722,6 +741,8 @@ def main():
     if "--safe-fonts" in sys.argv:
         FONT_HEAD = FONT_BODY = "Arial"
     spec = json.load(open(args[0], encoding="utf-8"))
+    global RTL
+    RTL = spec.get("lang", "he") != "en"
     out = args[1]
     if os.path.isdir(out):
         out = os.path.join(out, suggested_name(spec) + ".docx")

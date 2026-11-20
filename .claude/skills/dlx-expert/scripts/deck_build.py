@@ -28,7 +28,10 @@ Every slide may have "notes" (sources and caveats go there, never as small print
 the builder ("המחשה", "בלי מקור לא מציגים", "נבדק מול...") belong in notes - qa_text.py fails them on a slide.
 Data points ({value,label}) take "status": "done" | "planned" and an optional "target"; a missing or planned
 value renders as an outlined "data needed / יעד" card, never as a big number box.
-Spec "status": "skeleton" marks the title slide "שלד לעבודה" and writes <deck>-data-to-collect.docx.
+Spec "status": "skeleton" marks the title slide "שלד לעבודה" and writes <deck>-research-plan.docx from
+"research_plan": [{item, why, method, cost, after, pass}] (about 12 consolidated tasks), plus an appendix of
+every empty field. Public data (competitor prices, CBS counts, platform fees) is NOT a task: research it and put
+it on the slide as {"value", "label", "status": "assumption", "source": "...,date"}.
 Spec "sources": [{"claim","source"}] and "supplied": [facts the client gave] are stored in the file.
 Spec "sources": [{"claim", "source"}] is stored in the file; qa_text.py accepts those claims.
 """
@@ -189,7 +192,9 @@ def value_card(sl, t, x, y, w, h, item, dark, big=44):
         return
     rect(sl, x, y, w, h, "1A2442" if dark else t.dark, MSO_SHAPE.ROUNDED_RECTANGLE, radius=0.05)
     text(sl, x + 0.2, y + 0.2, w - 0.4, 1.4, item["value"], big, "FFFFFF", bold=True, align="ctr", anchor="m")
-    text(sl, x + 0.2, y + 1.65, w - 0.4, h - 1.8, item["label"], MIN_PT, "C9D2E6", align="ctr")
+    label = item["label"] + (f" · הנחה ({item['source']})" if item.get("status") == "assumption" and item.get("source")
+                             else (f" ({item['source']})" if item.get("source") else ""))
+    text(sl, x + 0.2, y + 1.65, w - 0.4, h - 1.8, label, MIN_PT, "C9D2E6", align="ctr")
 
 
 def k_statement(sl, t, s, n, total):
@@ -432,8 +437,8 @@ def k_finance(sl, t, s, n, total):
         price = _num(u.get("price_incl_vat"))
         vat = _num(u.get("vat", 18)) or 18
         net = f"{price / (1 + vat / 100):,.0f} ₪" if price else "[לאשר]"
-        steps = [f"{u.get('price_incl_vat')} ₪ ללקוח", f"{net} בלי מע\"מ",
-                 f"סליקה: {u.get('after_fees', '[לאשר]')}", f"מס: {u.get('after_tax', '[לאשר]')}"]
+        steps = u.get("steps") or [f"{u.get('price_incl_vat')} ₪ ללקוח", f"{net} בלי מע\"מ",
+                                   f"סליקה: {u.get('after_fees', '[לאשר]')}", f"מס: {u.get('after_tax', '[לאשר]')}"]
         # "·" not an arrow: Heebo has no arrow glyphs (a fallback font would appear in the PDF)
         label = "דוגמת חישוב: " if u.get("example", True) else ""
         text(sl, M + 0.25, y + 0.05, W - 2 * M - 0.5, 0.75, label + "  ·  ".join(steps), MIN_PT, "FFFFFF", anchor="m")
@@ -493,11 +498,40 @@ def collect_list(spec):
 
 
 def write_collect(spec, out):
-    """Skeleton decks ship with a data-to-collect document (Word, RTL) next to the PPTX."""
+    """Skeleton decks ship with a RESEARCH PLAN (Word, RTL, landscape): consolidated tasks with why / source /
+    cost / order / pass threshold, and an appendix of every field still empty on the slides."""
     import doc_build as D
-    d = D.new_doc()
-    D.para(d, f"{spec.get('title', 'מצגת')}: נתונים לאיסוף", size=16, bold=True, font=D.FONT_HEAD, after=2)
-    D.para(d, "המצגת היא שלד לעבודה: המבנה, המסרים והעיצוב מוכנים, והמספרים עוד לא. כל שורה כאן היא נתון שצריך "
+    from docx.enum.section import WD_ORIENT
+    from docx.shared import Cm as _Cm
+    d = D.new_doc(margins_cm=(1.5, 1.5, 1.5, 1.5))
+    sec = d.sections[0]
+    sec.orientation = WD_ORIENT.LANDSCAPE
+    sec.page_width, sec.page_height = _Cm(29.7), _Cm(21.0)
+    if spec.get("research_plan"):
+        D.para(d, f"{spec.get('title', 'מצגת')}: תוכנית מחקר", size=16, bold=True, font=D.FONT_HEAD, after=2)
+        D.para(d, "המצגת היא שלד לעבודה. מה שאפשר היה לבדוק ממקורות ציבוריים כבר בפנים, כהנחה עם מקור ותאריך. "
+                  "מה שנשאר הוא מידע שרק אתם יכולים לאסוף. הסדר כאן הוא סדר הביצוע.", size=11, color=D.MUTED,
+               after=8, line=1.25)
+        cols = ["#", "מה", "למה זה חשוב (שקף / החלטה)", "מקור / שיטה", "עלות / ימים", "תלוי ב-", "סף מעבר"]
+        t = d.add_table(rows=1, cols=len(cols))
+        D.table_rtl(t)
+        D.table_borders(t)
+        D.cell_margins(t)
+        for i, h in enumerate(cols):
+            D.cell_fill(t.rows[0].cells[i], "0E1630")
+            D.cell_text(t.rows[0].cells[i], h, size=10, bold=True, color="FFFFFF")
+        for i, r in enumerate(spec["research_plan"], 1):
+            c = t.add_row().cells
+            vals = [str(i), r["item"], r["why"], r["method"], r["cost"], r.get("after", "-"), r["pass"]]
+            for j, v in enumerate(vals):
+                D.cell_text(c[j], v, size=10, bold=(j == 1))
+        D.col_widths(t, [0.8, 4.2, 4.6, 5.0, 2.4, 1.8, 7.9])
+        D.rows_keep(t)
+        D.para(d, "", after=6)
+        D.para(d, "נספח: כל השדות שעדיין ריקים בשקפים", size=13, bold=True, font=D.FONT_HEAD, before=8, after=4)
+    else:
+        D.para(d, f"{spec.get('title', 'מצגת')}: נתונים לאיסוף", size=16, bold=True, font=D.FONT_HEAD, after=2)
+        D.para(d, "המצגת היא שלד לעבודה: המבנה, המסרים והעיצוב מוכנים, והמספרים עוד לא. כל שורה כאן היא נתון שצריך "
               "להביא, עם מקור, לפני שמציגים למשקיע.", size=11, color=D.MUTED, after=8, line=1.25)
     rows = collect_list(spec)
     t = d.add_table(rows=1, cols=3)
@@ -512,8 +546,9 @@ def write_collect(spec, out):
         D.cell_text(r[0], str(n), size=10.5, align="center")
         D.cell_text(r[1], topic, size=10.5)
         D.cell_text(r[2], what, size=10.5)
-    D.col_widths(t, [1.5, 4.0, 11.9])
-    path = os.path.splitext(out)[0] + "-data-to-collect.docx"
+    D.col_widths(t, [1.5, 5.0, 20.2])
+    D.rows_keep(t)
+    path = os.path.splitext(out)[0] + ("-research-plan.docx" if spec.get("research_plan") else "-data-to-collect.docx")
     d.save(path)
     return path, len(rows)
 
