@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מורה דיגיטלי/ת – ענן ובינה מלאכותית בהוראה</title>
+<meta name="description" content="מסלול למידה אינטראקטיבי למורים מתחילים: Google Classroom, Gemini, NotebookLM ו-Google Meet לצרכים פדגוגיים.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F9FC; --card:#FFFFFF; --ink:#1F2937; --muted:#5B6474; --line:#E3E8EF;
+  --primary:#1A73E8; --primary-d:#1559B5; --primary-l:#E8F0FE;
+  --success:#34A853; --success-t:#1E7E34; --success-bg:#E6F4EA;
+  --error:#D93025; --error-bg:#FCE8E6;
+  --gold:#F9AB00; --gold-bg:#FEF7E0;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 6px 18px rgba(16,24,40,.06);
+  --shadow-h:0 12px 28px rgba(26,115,232,.22);
+  --t:.2s ease;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{font-size:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Heebo',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;font-size:1.0625rem;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-weight:700;line-height:1.3;margin:0 0 .5em}
+h1{font-size:2rem} h2{font-size:1.55rem} h3{font-size:1.2rem}
+p{margin:0 0 .8em}
+a{color:var(--primary)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.skip{position:absolute;top:-60px;right:16px;background:var(--primary);color:#fff;padding:.6rem 1rem;border-radius:10px;z-index:100;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1120px;margin:0 auto;padding:.6rem 16px;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:.55rem;font-weight:800;font-size:1.05rem;color:var(--ink);background:none;border:none;font-family:inherit;cursor:pointer;padding:.25rem .4rem;border-radius:10px;transition:var(--t)}
+.brand:hover{background:var(--primary-l)}
+.brand-logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#1A73E8,#34A853);display:grid;place-items:center;color:#fff;font-size:1.1rem}
+.stats{display:flex;gap:.45rem;flex-wrap:wrap;margin-inline-start:auto;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:.3rem;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:.22rem .7rem;font-size:.88rem;font-weight:500;white-space:nowrap}
+.chip b{font-weight:700}
+.font-ctl{display:flex;gap:.25rem}
+.font-ctl button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;font-family:inherit;font-weight:700;cursor:pointer;color:var(--ink);transition:var(--t)}
+.font-ctl button:hover,.font-ctl button:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:var(--primary);color:var(--primary)}
+.progress{height:6px;background:var(--line)}
+.progress span{display:block;height:100%;background:linear-gradient(90deg,#1A73E8,#34A853);transition:width .8s ease;border-radius:0 4px 4px 0}
+
+/* ---------- Layout ---------- */
+main{max-width:1120px;margin:0 auto;padding:28px 16px 64px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem;border:1px solid rgba(227,232,239,.7)}
+.grid{display:grid;gap:1rem}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.muted{color:var(--muted)}
+.fade-in{animation:fadeUp .45s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.stagger>*{animation:fadeUp .45s ease both}
+.stagger>*:nth-child(2){animation-delay:.05s}.stagger>*:nth-child(3){animation-delay:.1s}.stagger>*:nth-child(4){animation-delay:.15s}.stagger>*:nth-child(5){animation-delay:.2s}.stagger>*:nth-child(6){animation-delay:.25s}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1.4rem;border-radius:12px;border:1.5px solid transparent;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;transition:transform var(--t),box-shadow var(--t),background var(--t),color var(--t),border-color var(--t);text-decoration:none;line-height:1.2}
+.btn:hover,.btn:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-h)}
+.btn:active{transform:translateY(-1px)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover,.btn-primary:focus-visible{background:var(--primary-d)}
+.btn-ghost{background:#fff;color:var(--primary);border-color:#C6DAFC}
+.btn-ghost:hover,.btn-ghost:focus-visible{background:var(--primary-l);border-color:var(--primary)}
+.btn-success{background:var(--success-t);color:#fff}
+.btn-success:hover,.btn-success:focus-visible{background:#17692B;box-shadow:0 12px 28px rgba(30,126,52,.25)}
+.btn-text{background:none;color:var(--muted);padding:.5rem .8rem}
+.btn-text:hover,.btn-text:focus-visible{color:var(--error);background:var(--error-bg);box-shadow:none}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem}
+
+/* ---------- Welcome ---------- */
+.hero{position:relative;overflow:hidden;border-radius:24px;padding:2.5rem 2rem;background:linear-gradient(135deg,#E8F0FE 0%,#F1F8F3 100%);border:1px solid #DCE7FA}
+.hero::after{content:"";position:absolute;inset-inline-start:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(26,115,232,.16),transparent 70%)}
+.hero h1{font-size:clamp(1.7rem,4vw,2.5rem);font-weight:800;max-width:720px}
+.hero p.lead{font-size:1.15rem;color:#3C4656;max-width:680px}
+.tools-row{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0 0}
+.tool-pill{background:#fff;border-radius:999px;padding:.35rem .9rem;font-weight:500;font-size:.92rem;box-shadow:var(--shadow);display:inline-flex;gap:.4rem;align-items:center}
+.goals{list-style:none;padding:0;margin:0;display:grid;gap:.6rem}
+.goals li{display:flex;gap:.6rem;align-items:flex-start}
+.goals li::before{content:"✓";flex:none;width:24px;height:24px;border-radius:50%;background:var(--success-bg);color:var(--success-t);display:grid;place-items:center;font-weight:800;font-size:.85rem;margin-top:.15rem}
+.field label{display:block;font-weight:700;margin-bottom:.4rem}
+.field input{width:100%;padding:.85rem 1rem;border-radius:12px;border:1.5px solid var(--line);font:inherit;font-size:1.05rem;transition:var(--t);background:#fff;color:var(--ink)}
+.field input:focus{border-color:var(--primary);outline:none;box-shadow:0 0 0 4px rgba(26,115,232,.15)}
+.field .err{color:var(--error);font-size:.92rem;margin-top:.35rem;min-height:1.3em}
+.notice{display:flex;gap:.6rem;background:var(--bg);border-radius:12px;padding:.8rem 1rem;font-size:.92rem;color:var(--muted);margin-top:1rem}
+
+/* ---------- Home ---------- */
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:2.2rem 0 1rem;flex-wrap:wrap}
+.section-title h2{margin:0}
+.unit-card{position:relative;text-align:start;background:#fff;border-radius:var(--radius);border:1px solid var(--line);padding:1.25rem 1.25rem 1.1rem;cursor:pointer;font:inherit;color:inherit;transition:transform var(--t),box-shadow var(--t),border-color var(--t);display:flex;flex-direction:column;gap:.5rem;min-height:190px;box-shadow:var(--shadow);overflow:hidden}
+.unit-card::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--uc)}
+.unit-card:hover:not([aria-disabled="true"]),.unit-card:focus-visible{transform:translateY(-4px);box-shadow:0 14px 30px rgba(16,24,40,.12);border-color:var(--uc)}
+.unit-card[aria-disabled="true"]{cursor:not-allowed;opacity:.62;background:#FBFCFE}
+.unit-ico{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:1.5rem;background:var(--ut)}
+.unit-num{font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.02em}
+.unit-card h3{margin:0;font-size:1.12rem}
+.unit-card p{margin:0;font-size:.93rem;color:var(--muted)}
+.status{margin-top:auto;display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;font-weight:700;padding:.2rem .65rem;border-radius:999px;width:max-content}
+.st-done{background:var(--success-bg);color:var(--success-t)}
+.st-open{background:var(--primary-l);color:var(--primary-d)}
+.st-lock{background:#EEF1F5;color:var(--muted)}
+.feature{display:flex;flex-direction:column;gap:.5rem}
+.feature .big{font-size:2rem}
+.badges-shelf{display:flex;flex-wrap:wrap;gap:.75rem}
+.badge{display:flex;flex-direction:column;align-items:center;gap:.3rem;width:118px;padding:.9rem .5rem;border-radius:14px;background:#fff;border:1px solid var(--line);text-align:center;font-size:.82rem;font-weight:500;transition:var(--t)}
+.badge .b-ico{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-size:1.55rem;background:var(--gold-bg);box-shadow:inset 0 0 0 3px #FDE293}
+.badge.locked{opacity:.45;filter:grayscale(1)}
+.badge:not(.locked):hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+
+/* ---------- Unit ---------- */
+.unit-hero{border-radius:22px;padding:2rem;background:var(--ut);border:1px solid rgba(0,0,0,.04);position:relative;overflow:hidden}
+.unit-hero .unit-ico{background:#fff;box-shadow:var(--shadow);width:60px;height:60px;font-size:1.9rem;margin-bottom:.8rem}
+.crumbs{display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.learn-card{border-inline-start:4px solid var(--uc)}
+.learn-card h3{display:flex;gap:.5rem;align-items:center}
+.learn-card .n{flex:none;width:28px;height:28px;border-radius:8px;background:var(--ut);color:var(--ink);display:grid;place-items:center;font-size:.9rem;font-weight:800}
+.box{border-radius:var(--radius);padding:1.2rem 1.4rem;display:flex;gap:.9rem;align-items:flex-start}
+.box .ico{font-size:1.6rem;line-height:1}
+.box h3{margin-bottom:.3rem;font-size:1.05rem}
+.box p{margin:0}
+.box-scn{background:#EEF4FF;border:1px solid #D2E3FC}
+.box-tip{background:var(--gold-bg);border:1px solid #FCE8B2}
+.box-eth{background:#F3EEFB;border:1px solid #E1D5F5}
+
+/* ---------- Practice ---------- */
+.practice-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.dots{display:flex;gap:.35rem}
+.dots span{width:28px;height:7px;border-radius:4px;background:var(--line)}
+.dots span.done{background:var(--success)} .dots span.fail{background:#F28B82} .dots span.cur{background:var(--primary)}
+.type-tag{display:inline-flex;align-items:center;gap:.35rem;background:var(--ut,var(--primary-l));border-radius:999px;padding:.25rem .8rem;font-size:.85rem;font-weight:700}
+.q{font-size:1.2rem;font-weight:700;margin:.8rem 0 1.1rem}
+.opts{display:grid;gap:.65rem}
+.opt{display:flex;gap:.8rem;align-items:flex-start;text-align:start;width:100%;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:.9rem 1rem;font:inherit;color:inherit;cursor:pointer;transition:transform var(--t),box-shadow var(--t),border-color var(--t),background var(--t)}
+.opt:hover:not(:disabled),.opt:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:var(--primary)}
+.opt .let{flex:none;width:30px;height:30px;border-radius:9px;background:var(--bg);display:grid;place-items:center;font-weight:800;font-size:.9rem;border:1px solid var(--line)}
+.opt.ok{border-color:var(--success);background:var(--success-bg)} .opt.ok .let{background:var(--success);color:#fff;border-color:var(--success)}
+.opt.bad{border-color:var(--error);background:var(--error-bg)} .opt.bad .let{background:var(--error);color:#fff;border-color:var(--error)}
+.opt:disabled{cursor:default}
+.opt.prompt-opt{font-family:inherit;background:#FAFBFD}
+.weak{background:#FFF4F2;border:1.5px dashed #F28B82;border-radius:14px;padding:1rem 1.1rem;margin-bottom:1rem}
+.weak small{display:block;font-weight:700;color:var(--error);margin-bottom:.3rem}
+.feedback{margin-top:1.1rem;border-radius:14px;padding:1rem 1.2rem;display:none}
+.feedback.show{display:block;animation:fadeUp .3s ease}
+.feedback.good{background:var(--success-bg);border:1px solid #B7E1C1}
+.feedback.badf{background:var(--error-bg);border:1px solid #F6C2BD}
+.feedback .fb-title{font-weight:800;margin-bottom:.25rem}
+.xp-pop{display:inline-block;background:var(--gold);color:#3B2A00;font-weight:800;border-radius:999px;padding:.1rem .6rem;font-size:.85rem;margin-inline-start:.4rem}
+
+/* match */
+.match{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+.m-rows{display:grid;gap:.6rem}
+.m-row{display:grid;gap:.35rem}
+.m-term{font-weight:700}
+.slot{min-height:54px;border:2px dashed #C6D2E3;border-radius:12px;background:#FAFBFD;font:inherit;color:inherit;text-align:start;padding:.55rem .8rem;cursor:pointer;transition:var(--t);width:100%}
+.slot:hover,.slot:focus-visible,.slot.over{border-color:var(--primary);background:var(--primary-l)}
+.slot.filled{border-style:solid;border-color:#9DB9EA;background:#fff}
+.slot.ok{border-color:var(--success);background:var(--success-bg)}
+.slot.bad{border-color:var(--error);background:var(--error-bg)}
+.slot .ph{color:var(--muted);font-size:.9rem}
+.bank{display:flex;flex-direction:column;gap:.55rem;background:var(--bg);border-radius:14px;padding:.8rem;align-content:flex-start;min-height:100px}
+.bank-title{font-size:.85rem;color:var(--muted);font-weight:700}
+.chip-btn{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:.6rem .8rem;font:inherit;font-size:.95rem;text-align:start;cursor:grab;color:inherit;transition:transform var(--t),box-shadow var(--t),border-color var(--t)}
+.chip-btn:hover,.chip-btn:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:var(--primary)}
+.chip-btn[aria-pressed="true"]{border-color:var(--primary);background:var(--primary-l);box-shadow:0 0 0 3px rgba(26,115,232,.2)}
+.hint{font-size:.88rem;color:var(--muted);margin:-.4rem 0 .9rem}
+
+/* order */
+.order{list-style:none;padding:0;margin:0;display:grid;gap:.55rem}
+.order li{display:flex;align-items:center;gap:.7rem;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:.55rem .7rem;transition:var(--t);cursor:grab}
+.order li:hover{border-color:#9DB9EA;box-shadow:var(--shadow)}
+.order li.dragging{opacity:.5}
+.order li.ok{border-color:var(--success);background:var(--success-bg)}
+.order li.bad{border-color:var(--error);background:var(--error-bg)}
+.order .num{flex:none;width:30px;height:30px;border-radius:9px;background:var(--primary-l);color:var(--primary-d);display:grid;place-items:center;font-weight:800}
+.order .txt{flex:1}
+.order .mv{display:flex;gap:.25rem}
+.order .mv button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:.9rem;transition:var(--t);color:var(--ink)}
+.order .mv button:hover:not(:disabled),.order .mv button:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:var(--primary)}
+.order .mv button:disabled{opacity:.3;cursor:default}
+
+/* summary / exam / flash */
+.center{text-align:center}
+.big-ico{font-size:3.5rem;line-height:1;margin-bottom:.5rem}
+.score-ring{--p:0;width:150px;height:150px;border-radius:50%;margin:0 auto 1rem;display:grid;place-items:center;background:conic-gradient(var(--ring,#1A73E8) calc(var(--p)*1%),#E3E8EF 0)}
+.score-ring div{width:118px;height:118px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:2rem;font-weight:800}
+.review{list-style:none;padding:0;display:grid;gap:.7rem;text-align:start}
+.review li{background:#fff;border:1px solid var(--line);border-radius:12px;padding:.9rem 1rem;border-inline-start:4px solid var(--error)}
+.timer{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin:.6rem 0 1rem}
+.timer span{display:block;height:100%;background:linear-gradient(90deg,#34A853,#F9AB00);transition:width .1s linear}
+.timer.low span{background:var(--error)}
+.flash-top{display:flex;justify-content:space-between;align-items:center;font-weight:700;gap:1rem;flex-wrap:wrap}
+.hs{list-style:none;padding:0;margin:0;display:grid;gap:.4rem}
+.hs li{display:flex;justify-content:space-between;background:var(--bg);border-radius:10px;padding:.45rem .8rem}
+.lock-note{display:flex;gap:.5rem;align-items:center;font-size:.9rem;color:var(--muted)}
+
+/* ---------- Certificate ---------- */
+.cert-wrap{display:flex;justify-content:center}
+.cert{position:relative;width:100%;max-width:1000px;aspect-ratio:1.414/1;background:#fff;border-radius:6px;box-shadow:0 20px 50px rgba(16,24,40,.15);padding:4.5% 6%;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden}
+.cert::before{content:"";position:absolute;inset:14px;border:2px solid #1A73E8;border-radius:4px;pointer-events:none}
+.cert::after{content:"";position:absolute;inset:22px;border:1px solid #C6DAFC;border-radius:2px;pointer-events:none}
+.cert .corner{position:absolute;width:180px;height:180px;border-radius:50%;filter:blur(2px);opacity:.5}
+.cert .c1{top:-90px;right:-90px;background:radial-gradient(circle,#C6DAFC,transparent 70%)}
+.cert .c2{bottom:-90px;left:-90px;background:radial-gradient(circle,#CEEAD6,transparent 70%)}
+.cert-seal{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#1A73E8,#34A853);color:#fff;display:grid;place-items:center;font-size:1.8rem;box-shadow:0 6px 16px rgba(26,115,232,.3);margin-bottom:.6rem}
+.cert-kicker{letter-spacing:.25em;font-weight:700;color:var(--primary);font-size:.85rem}
+.cert h1{font-size:clamp(1.3rem,3vw,2.1rem);margin:.2rem 0 .4rem;font-weight:800}
+.cert .to{color:var(--muted);margin:0}
+.cert .name{font-size:clamp(1.8rem,5vw,3rem);font-weight:800;color:#0F3D82;margin:.1rem 0 .2rem;padding:0 1.5rem .2rem;border-bottom:2px solid #F9AB00}
+.cert .desc{max-width:640px;font-size:clamp(.82rem,1.6vw,1rem);margin:.5rem 0}
+.cert-stats{display:flex;gap:clamp(.6rem,3vw,2.2rem);justify-content:center;margin:.4rem 0;flex-wrap:wrap}
+.cert-stats div{display:flex;flex-direction:column}
+.cert-stats b{font-size:clamp(1.05rem,2.6vw,1.6rem);color:#0F3D82}
+.cert-stats span{font-size:clamp(.7rem,1.4vw,.85rem);color:var(--muted)}
+.cert-units{display:flex;flex-wrap:wrap;gap:.35rem;justify-content:center;max-width:760px;margin:.3rem 0}
+.cert-units span{font-size:clamp(.66rem,1.3vw,.8rem);background:#F1F5FC;border-radius:999px;padding:.15rem .6rem}
+.cert-badges{font-size:clamp(1.1rem,2.4vw,1.5rem);letter-spacing:.2rem;margin:.2rem 0}
+.cert-foot{margin-top:auto;width:100%;display:flex;justify-content:space-between;align-items:flex-end;font-size:clamp(.66rem,1.3vw,.82rem);color:var(--muted);gap:1rem}
+.cert-foot .sig{border-top:1px solid #9AA4B2;padding-top:.2rem;min-width:120px}
+
+/* ---------- Toast / confetti ---------- */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(120px);background:#1F2937;color:#fff;padding:.8rem 1.3rem;border-radius:14px;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,.25);transition:transform .35s ease,visibility .35s;visibility:hidden;z-index:200;max-width:calc(100% - 32px);text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);visibility:visible}
+.cf{position:fixed;top:-14px;width:9px;height:14px;border-radius:2px;z-index:300;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+footer{max-width:1120px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:.85rem;text-align:center}
+
+@media (max-width:640px){
+  h1{font-size:1.6rem}
+  .hero{padding:1.6rem 1.2rem}
+  .card{padding:1.15rem}
+  .match{grid-template-columns:1fr}
+  .unit-hero{padding:1.4rem}
+  .stats .chip.hide-sm{display:none}
+  .cert{aspect-ratio:auto;padding:2.2rem 1.4rem}
+  .cert-foot{flex-direction:column;align-items:center}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+@media print{
+  @page{size:A4 landscape;margin:0}
+  body{background:#fff}
+  .topbar,.no-print,footer,.toast,.skip,.cf{display:none!important}
+  main{padding:0;max-width:none}
+  .cert{box-shadow:none;width:297mm;height:209mm;max-width:none;aspect-ratio:auto;border-radius:0;padding:14mm 20mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cert *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<a href="#main" class="skip">דילוג לתוכן הראשי</a>
+<header class="topbar" id="topbar" hidden>
+  <div class="topbar-in">
+    <button class="brand" id="brandBtn" aria-label="מעבר למפת הלמידה"><span class="brand-logo" aria-hidden="true">☁️</span><span>מורה דיגיטלי/ת</span></button>
+    <div class="stats" id="stats"></div>
+    <div class="font-ctl" role="group" aria-label="גודל טקסט">
+      <button id="fontDown" aria-label="הקטנת גודל הטקסט">א−</button>
+      <button id="fontUp" aria-label="הגדלת גודל הטקסט">א+</button>
+    </div>
+  </div>
+  <div class="progress" role="progressbar" aria-label="התקדמות כללית במסלול" aria-valuemin="0" aria-valuemax="100" id="progWrap"><span id="progBar" style="width:0"></span></div>
+</header>
+<main id="main" tabindex="-1"></main>
+<footer class="no-print">
+  האפליקציה היא כלי הכשרה עצמי. היא אינה מסמך רשמי של משרד החינוך ואינה קשורה ל-Google. ממשקי המוצרים מתעדכנים מעת לעת, וזמינות התכונות תלויה ברישיון ובהגדרות מנהל המערכת במוסד.
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr-only" id="live" aria-live="assertive"></div>
+
+<script>
+/* =====================================================================
+   תוכן הלימוד
+   ===================================================================== */
+const UNITS = [
+{
+  title:`יסודות Classroom`, icon:`🏫`, color:`#1A73E8`, tint:`#E8F0FE`,
+  short:`הקמת כיתה, צירוף תלמידים ומורה שותף, הכרת הלשוניות וארגון לפי נושאים.`,
+  badge:{id:'b1', name:`אדריכל/ית הכיתה`, icon:`🏛️`},
+  goals:[`להקים כיתה ולצרף אליה תלמידים ומורה שותף/ה.`,`להכיר את ארבע הלשוניות המרכזיות ואת תפקידן.`,`לארגן את עבודות הכיתה לפי נושאים, במבנה ברור וקבוע.`],
+  cards:[
+    {t:`מהו Google Classroom?`, b:`סביבת למידה מקוונת בתוך Google Workspace for Education, שמרכזת את כל מה שקורה בכיתה: חומרים, מטלות, משוב, ציונים ותקשורת. הכיתה משתלבת עם Drive, Docs, Forms ו-Meet, וכל עבודה של תלמיד/ה נשמרת אוטומטית ב-Drive. מתחברים תמיד עם חשבון החינוך הארגוני שקיבלתם מבית הספר או מהבעלות.`},
+    {t:`יצירת כיתה`, b:`לוחצים על ＋ ובוחרים "יצירת כיתה". ממלאים שם ברור (למשל "מדעים ח'2 – תשפ״ז"), קטע, נושא וחדר. שם ברור עוזר גם לתלמידים וגם לכם להתמצא כשיש כמה כיתות. אפשר לבחור ערכת נושא ותמונה. בסוף השנה מעבירים את הכיתה לארכיון, והתוכן נשמר.`},
+    {t:`צירוף תלמידים ומורה שותף/ה`, b:`יש שלוש דרכים לצרף תלמידים: קוד כיתה, קישור הזמנה או הזמנה במייל דרך לשונית "אנשים". מורה שותף/ה, כמו רכז/ת או מורת שילוב, מקבל/ת הרשאות ניהול כמעט מלאות. אחרי שכולם הצטרפו מומלץ לאפס או להשבית את קוד הכיתה, כדי למנוע הצטרפות לא מורשית.`},
+    {t:`ארבע הלשוניות`, b:`זרם: הודעות ועדכונים. עבודות כיתה: מטלות וחומרים מאורגנים. אנשים: מורים, תלמידים ואפוטרופוסים. ציונים: גיליון ציונים מרוכז. בהגדרות הכיתה קובעים מי רשאי/ת לפרסם ולהגיב בזרם.`},
+    {t:`ארגון לפי נושאים`, b:`בלשונית "עבודות כיתה" יוצרים נושאים, כמו "יחידה 1 – התא" או "מטלות סיכום", ומשייכים לכל נושא את המטלות והחומרים שלו. אפשר לגרור נושאים כדי לשנות את הסדר. מבנה קבוע וצפוי מקל על כל התלמידים, ובמיוחד על תלמידים עם קשיי קשב וארגון.`}
+  ],
+  scenario:`מורה למדעים בכיתה ח' פותחת כיתה בתחילת השנה, ויוצרת נושאים לפי היחידות בתוכנית הלימודים. בראש העמוד היא מוסיפה נושא קבוע, "📌 מידע חשוב". בשיעור הראשון היא מקרינה את קוד הכיתה, וכשכל התלמידים מצטרפים היא משביתה אותו.`,
+  tip:`כדאי לקבוע מבנה אחיד לשמות המטלות, למשל "יחידה 2 | מטלה 3 | שם המטלה". כך תלמידים מוצאים כל מטלה בקלות.`,
+  ethics:`מתחברים ל-Classroom רק בחשבון החינוך הארגוני, שבו הנתונים מנוהלים לפי ההגדרות וההסכמים של מערכת החינוך. לא פותחים כיתה בחשבון Gmail פרטי.`,
+  items:[
+    {type:'mc', q:`באיזו לשונית תמצאו את כל המטלות והחומרים, מאורגנים לפי נושאים?`, options:[`זרם`,`עבודות כיתה`,`אנשים`,`ציונים`], answer:1, explain:`הלשונית "עבודות כיתה" מרכזת את המטלות, השאלות וחומרי הלימוד, מאורגנים לפי נושאים.`},
+    {type:'tf', q:`"מומלץ להשאיר את קוד הכיתה פעיל לאורך כל השנה, כדי שיהיה קל להצטרף."`, answer:false, explain:`אחרי שכל התלמידים הצטרפו מומלץ לאפס או להשבית את הקוד, כדי למנוע הצטרפות של אנשים לא מורשים.`},
+    {type:'match', q:`התאימו לכל לשונית את התפקיד שלה.`, pairs:[[`זרם`,`הודעות ועדכונים שוטפים לכיתה`],[`עבודות כיתה`,`מטלות וחומרים מאורגנים לפי נושאים`],[`אנשים`,`ניהול מורים, תלמידים ואפוטרופוסים`],[`ציונים`,`גיליון ציונים מרוכז לכל הכיתה`]], explain:`כל לשונית משרתת צורך אחר. ההיכרות איתן חוסכת זמן ומונעת בלבול.`},
+    {type:'order', q:`סדרו את שלבי הקמת הכיתה לפי הסדר הנכון.`, steps:[`התחברות בחשבון החינוך הארגוני`,`לחיצה על ＋ ובחירה ב"יצירת כיתה"`,`מילוי שם הכיתה, הקטע והנושא`,`יצירת נושאים בלשונית "עבודות כיתה"`,`שיתוף קוד הכיתה עם התלמידים`,`השבתת הקוד אחרי שכולם הצטרפו`], explain:`קודם מקימים את המבנה, אחר כך מצרפים תלמידים, ובסוף סוגרים את הגישה.`},
+    {type:'scenario', ethics:true, q:`מורה חדש רוצה לפתוח כיתה מהר, אבל עוד לא קיבל את הסיסמה לחשבון הארגוני. מה כדאי לעשות?`, options:[
+      {t:`לפתוח כיתה בחשבון ה-Gmail הפרטי ולהעביר אותה אחר כך`, fb:`לא מומלץ. התלמידים ייחשפו לחשבון פרטי שאינו מנוהל, והנתונים לא יוגנו לפי ההגדרות הארגוניות.`},
+      {t:`לפנות לרכז/ת התקשוב, ובינתיים להשתמש בערוצים המאושרים של בית הספר`, best:true},
+      {t:`לבקש מאחד התלמידים לפתוח כיתה ולצרף את המורה`, fb:`לא נכון. האחריות לניהול סביבת הלמידה היא של המורה, ולא של התלמידים.`}
+    ], explain:`נכון. חשבון ארגוני מבטיח ניהול, הגנה על פרטיות התלמידים ותמיכה טכנית.`},
+    {type:'mc', q:`מורת שילוב צריכה לעזור בבדיקת מטלות ובהעלאת חומרים. מה הדרך הנכונה לצרף אותה?`, options:[`לשתף איתה את הסיסמה שלכם`,`להזמין אותה כמורה שותפה בלשונית "אנשים"`,`לצרף אותה לכיתה כתלמידה`,`לשלוח לה צילומי מסך של המטלות`], answer:1, explain:`מורה שותף/ה מקבל/ת הרשאות ניהול בלי לשתף סיסמאות. אסור לשתף סיסמה אישית.`}
+  ]
+},
+{
+  title:`ניהול למידה ב-Classroom`, icon:`📋`, color:`#1E8E3E`, tint:`#E6F4EA`,
+  short:`מטלות, חידונים, תזמון, הוראה מותאמת, מחוונים, משוב, ציונים ודיווח להורים.`,
+  badge:{id:'b2', name:`מנהל/ת הלמידה`, icon:`🎯`},
+  goals:[`ליצור מטלות מסוגים שונים ולתזמן את פרסומן.`,`להתאים מטלות לתלמידים שונים (הוראה מותאמת).`,`לתת משוב אפקטיבי בעזרת מחוון, הערות ובנק תגובות.`],
+  cards:[
+    {t:`סוגי פריטים בעבודות כיתה`, b:`מטלה: הגשת קובץ או מסמך. מטלה עם בוחן: חידון מבוסס Google Forms, עם בדיקה אוטומטית. שאלה: תשובה קצרה או רב-ברירה. חומר לימוד: פריט בלי הגשה. האפשרות "שימוש חוזר בפוסט" מעתיקה פריט מכיתה אחרת.`},
+    {t:`תזמון והקצאה`, b:`לכל מטלה קובעים מועד הגשה ונושא, ואפשר גם לתזמן את הפרסום מראש. אפשר להקצות מטלה לכל הכיתה או רק לתלמידים נבחרים. כך נותנים משימה מותאמת לקבוצה מסוימת בלי שאר הכיתה תראה אותה. כשמצרפים קובץ Docs בוחרים "יצירת עותק לכל תלמיד".`},
+    {t:`מחוון (Rubric)`, b:`המחוון מגדיר מראש קריטריונים ורמות ביצוע, ומשמש גם לבדיקה וגם להנחיה. כשהתלמידים רואים אותו לפני ההגשה, הם יודעים מה מצופה מהם. אפשר לבנות מחוון ב-Classroom, לייבא אותו מגיליון או להשתמש שוב במחוון קיים.`},
+    {t:`משוב והחזרת עבודות`, b:`בכלי הבדיקה כותבים הערות על המסמך עצמו, מוסיפים הערה פרטית ונותנים ציון. בנק התגובות שומר הערות שחוזרות על עצמן, לשימוש חוזר. בסוף מחזירים את העבודה, והתלמיד/ה מקבל/ת עדכון ויכול/ה לתקן. משוב מיידי וספציפי מקדם למידה יותר מציון בלבד.`},
+    {t:`ציונים, הורים ומקוריות`, b:`בהגדרות קובעים קטגוריות ציון (למשל מבחנים 40%, מטלות 60%) ואת שיטת החישוב. אם המוסד הפעיל את האפשרות, אפשר להזמין אפוטרופוסים לקבל סיכום תקופתי במייל. דוחות מקוריות עוזרים לזהות העתקות, והיקף השימוש בהם תלוי ברישיון.`}
+  ],
+  scenario:`מורה לאנגלית בכיתה ז' מפרסמת מטלת כתיבה בשתי גרסאות. הגרסה הראשונה כוללת מבנה מוכן ובנק מילים, והיא מוקצית רק לקבוצה שזקוקה לתמיכה. הגרסה השנייה, המאתגרת, מוקצית לשאר הכיתה. שתיהן נבדקות לפי אותו מחוון, והמשוב נכתב בעזרת בנק התגובות.`,
+  tip:`משוב טוב עונה על שלוש שאלות: לאן אני הולך/ת? איפה אני עכשיו? מה הצעד הבא שלי?`,
+  ethics:`הערות אישיות על תלמידים כותבים בהערה פרטית, ולא בזרם הכיתה. ציונים, קשיים והתאמות הם מידע אישי, ונשארים בין המורה, התלמיד/ה וההורים.`,
+  items:[
+    {type:'mc', q:`רוצים לתת דף עבודה ב-Docs שכל תלמיד/ה ימלא/תמלא בנפרד. איזו הגדרה תבחרו?`, options:[`התלמידים יכולים להציג את הקובץ`,`התלמידים יכולים לערוך את הקובץ`,`יצירת עותק לכל תלמיד`,`שליחת הקובץ במייל לכל תלמיד`], answer:2, explain:`"יצירת עותק לכל תלמיד" נותן לכל אחד/ת מסמך אישי שמחובר אוטומטית להגשה.`},
+    {type:'match', q:`התאימו לכל סוג פריט את השימוש המתאים לו.`, pairs:[[`מטלה עם בוחן`,`חידון ב-Forms עם בדיקה אוטומטית`],[`שאלה`,`תשובה קצרה או רב-ברירה ישירות ב-Classroom`],[`חומר לימוד`,`מצגת או קישור, בלי הגשה`],[`מטלה`,`הגשת עבודה או מסמך לבדיקה ולציון`]], explain:`בחירה נכונה של סוג הפריט חוסכת זמן ומבהירה לתלמידים מה מצופה מהם.`},
+    {type:'scenario', q:`בכיתה שלושה תלמידים שזקוקים לגרסה מונגשת של המטלה. מה עושים?`, options:[
+      {t:`מפרסמים לכל הכיתה את שתי הגרסאות, וכל אחד בוחר`, fb:`אפשרי, אבל זה עלול לחשוף את התלמידים ולסמן אותם מול הכיתה.`},
+      {t:`מפרסמים את הגרסה המותאמת ומקצים אותה רק לשלושת התלמידים`, best:true},
+      {t:`שולחים להם את המטלה בהודעה פרטית בווטסאפ`, fb:`לא מומלץ. ההגשה, המעקב והמשוב מתפזרים מחוץ לסביבה הארגונית.`}
+    ], explain:`נכון. הקצאה לתלמידים נבחרים מאפשרת הוראה מותאמת בלי לחשוף אותם.`},
+    {type:'tf', ethics:true, q:`"מותר לכתוב בזרם הכיתה: 'נועה, עדיין לא הגשת, וזו כבר הפעם השלישית'."`, answer:false, explain:`זו פנייה אישית שפוגעת בפרטיות ובכבוד של התלמידה. כותבים לה הערה פרטית או מדברים איתה באופן אישי.`},
+    {type:'order', q:`סדרו את שלבי בדיקת עבודה עם משוב.`, steps:[`פתיחת ההגשה בכלי הבדיקה`,`קריאת העבודה לפי המחוון`,`הוספת הערות על המסמך (אפשר מבנק התגובות)`,`סימון הרמות במחוון והזנת ציון`,`החזרת העבודה לתלמיד/ה`], explain:`קודם קוראים ומעירים, אחר כך נותנים ציון, ובסוף מחזירים את העבודה כדי שהתלמיד/ה יוכל/תוכל ללמוד ממנה.`},
+    {type:'mc', q:`מה היתרון המרכזי בשיתוף המחוון עם התלמידים לפני ההגשה?`, options:[`המורה חוסך/ת זמן הקלדה`,`התלמידים יודעים מראש מה מצופה מהם ויכולים לכוון את העבודה`,`המחוון מחליף את המשוב המילולי`,`מערכת ה-AI בודקת במקום המורה`], answer:1, explain:`מחוון גלוי הופך את ההערכה לכלי למידה. התלמידים מבינים את הקריטריונים ומכוונים את העבודה לפיהם.`}
+  ]
+},
+{
+  title:`Gemini למורה`, icon:`✨`, color:`#8430CE`, tint:`#F3E8FD`,
+  short:`כתיבת פרומפט מובנה, הפקת תכנים פדגוגיים, התאמה לשונות ובדיקה ביקורתית.`,
+  badge:{id:'b3', name:`מהנדס/ת הפרומפטים`, icon:`🧠`},
+  goals:[`לכתוב פרומפט מובנה ויעיל.`,`להפיק עם Gemini מערך שיעור, דף עבודה, שאלות ומחוון.`,`לבדוק, לתקן ולהתאים כל תוצר לפני שהוא מגיע לכיתה.`],
+  cards:[
+    {t:`מה זה Gemini?`, b:`Gemini הוא עוזר הבינה המלאכותית של Google. בחשבונות Google Workspace for Education הוא זמין למורים לפי הגדרות מנהל המערכת, עם הגנות נתונים ארגוניות. הזמינות לתלמידים תלויה בגיל ובמדיניות המוסד. Gemini עוזר בתכנון, אבל האחריות הפדגוגית נשארת אצל המורה.`},
+    {t:`מבנה פרומפט: 5 רכיבים`, b:`תפקיד: "את/ה מורה מנוסה למתמטיקה". משימה: "צור/י דף עבודה". הקשר: "על שברים פשוטים, אחרי שני שיעורי מבוא". קהל: "כיתה ה', כולל תלמידים מתקשים". פורמט: "10 שאלות בסדר קושי עולה, עם מפתח תשובות". ככל שהפרומפט ספציפי יותר, כך התוצר מדויק יותר.`},
+    {t:`שימושים פדגוגיים`, b:`Gemini יכול להכין מערך שיעור (פתיחה, גוף וסיכום), דף עבודה, שאלות ברמות חשיבה שונות, טקסט שמותאם לרמת הקריאה, רעיונות לפעילות, טיוטת מחוון או ניסוח הודעה להורים. אפשר להמשיך את השיחה ולבקש שיפורים: "קצר", "הוסף דוגמה", "התאם לכיתה ג'".`},
+    {t:`בדיקה ביקורתית: הכלל`, b:`מודל שפה עלול לטעות, להמציא עובדות ומקורות ("הזיות") ולשקף הטיות. לפני כל שימוש בודקים: התאמה לתוכנית הלימודים, נכונות עובדתית, שפה תקנית ורגישות תרבותית. מה ש-Gemini מפיק הוא טיוטה. רק אחרי שהמורה בודק/ת ומתקן/ת, היא הופכת לחומר לימוד.`},
+    {t:`התאמה לשונות`, b:`אפשר לבקש מ-Gemini שלוש גרסאות של אותה משימה: עם תמיכה (פיגומים ובנק מילים), רגילה ומאתגרת. אפשר גם לבקש לפשט את השפה, להוסיף שאלות הכוונה או לחלק את המשימה לשלבים. ב-Classroom מקצים כל גרסה לקבוצה המתאימה.`}
+  ],
+  scenario:`מורה להיסטוריה בכיתה ט' כותבת: "את מורה להיסטוריה. צרי 8 שאלות על הסיבות למלחמת העולם הראשונה לכיתה ט', ברמות חשיבה מגוונות, עם מפתח תשובות." כשהיא בודקת את התוצר, היא מגלה תאריך שגוי ומתקנת אותו. היא גם מוסיפה שאלה על מקור היסטורי, ורק אז מפרסמת.`,
+  tip:`שמרו פרומפטים טובים במסמך אישי, "בנק פרומפטים", והשתמשו בהם שוב עם שינויים קלים.`,
+  ethics:`אף פעם לא מזינים לכלי AI שמות של תלמידים, מספרי זהות, ציונים, אבחונים או מידע רגשי ומשפחתי. כשצריך להתאים חומר לתלמיד/ה מסוים/ת, מתארים צורך כללי ("תלמיד/ה עם קושי בקריאה") בלי פרטים מזהים.`,
+  items:[
+    {type:'prompt', q:`איזו גרסה משפרת את הפרומפט בצורה הטובה ביותר?`, weak:`תכין לי משהו על שברים`, options:[`תכין לי דף עבודה טוב על שברים, בבקשה.`,`את/ה מורה למתמטיקה. צור/י דף עבודה על חיבור שברים עם מכנה משותף לכיתה ה': 8 תרגילים בסדר קושי עולה, כולל 2 בעיות מילוליות ומפתח תשובות.`,`שברים, כיתה ה', דף עבודה, מהר.`], answer:1, explain:`הגרסה הזו כוללת את כל חמשת הרכיבים: תפקיד, משימה, הקשר, קהל ופורמט.`},
+    {type:'tf', q:`"אם Gemini כתב שאלה עם תשובה, אפשר להניח שהתשובה נכונה ולפרסם אותה ישירות לתלמידים."`, answer:false, explain:`מודלים של AI עלולים לטעות ולהמציא. המורה בודק/ת כל תוצר לפני שמפרסמים אותו.`},
+    {type:'match', q:`התאימו לכל רכיב בפרומפט דוגמה מתאימה.`, pairs:[[`תפקיד`,`"את/ה מורה מנוסה ללשון"`],[`משימה`,`"צור/י מחוון להערכת חיבור טיעוני"`],[`קהל`,`"כיתה ט', כולל תלמידים עם קשיי כתיבה"`],[`פורמט`,`"טבלה עם 4 קריטריונים ו-4 רמות"`]], explain:`כל רכיב מוסיף לפרומפט מידע ש-Gemini צריך כדי להפיק תוצר מדויק.`},
+    {type:'scenario', ethics:true, q:`מורה רוצה עזרה בכתיבת תוכנית התערבות לתלמיד עם הפרעת קשב. מה מזינים ל-Gemini?`, options:[
+      {t:`את שם התלמיד, האבחון המלא והציונים, כדי לקבל תוכנית מדויקת`, fb:`אסור. זה מידע אישי ורגיש שאסור להזין לכלי AI.`},
+      {t:`תיאור כללי: "תלמיד בכיתה ו' עם קשיי קשב, שמתקשה להתמיד במשימות ארוכות", בלי פרטים מזהים`, best:true},
+      {t:`לא משתמשים ב-AI בשום מצב`, fb:`אין צורך להימנע לגמרי. אפשר להיעזר בכלי בלי למסור מידע מזהה.`}
+    ], explain:`נכון. תיאור כללי של הצורך מספיק כדי לקבל רעיונות טובים, והפרטיות של התלמיד נשמרת.`},
+    {type:'order', q:`סדרו את מחזור העבודה עם Gemini.`, steps:[`הגדרת המטרה הפדגוגית`,`כתיבת פרומפט מובנה`,`קריאת התוצר והערכתו`,`בקשת שיפורים בהמשך השיחה`,`בדיקת עובדות והתאמה לתוכנית הלימודים`,`עריכה סופית ופרסום ב-Classroom`], explain:`המטרה הפדגוגית קובעת את הפרומפט, ובדיקת העובדות תמיד באה לפני הפרסום.`},
+    {type:'prompt', q:`איזו גרסה משפרת את הפרומפט בצורה הטובה ביותר?`, weak:`תן שאלות על הסיפור`, options:[`תן הרבה שאלות קשות על הסיפור.`,`את/ה מורה לספרות. על סמך הסיפור המצורף, צור/י 6 שאלות לכיתה ח': 2 שאלות הבנה, 2 שאלות פרשנות ו-2 שאלות הערכה אישית, עם קווים מנחים לתשובה.`,`תסכם לי את הסיפור.`], answer:1, explain:`הפרומפט המשופר מגדיר תפקיד, קהל, כמות, רמות חשיבה ופורמט לתשובה.`}
+  ]
+},
+{
+  title:`NotebookLM`, icon:`📚`, color:`#E37400`, tint:`#FEF3E2`,
+  short:`עבודה מתוך מקורות מהימנים: תשובות עם ציטוטים, מדריכי לימוד, בחנים וסקירות שמע.`,
+  badge:{id:'b4', name:`חוקר/ת המקורות`, icon:`🔎`},
+  goals:[`ליצור מחברת ולהעלות אליה מקורות מהימנים.`,`לשאול שאלות ולקבל תשובות שמבוססות על המקורות, עם ציטוטים.`,`להפיק תוצרי למידה ולשלב אותם בכיתה.`],
+  cards:[
+    {t:`מה מייחד את NotebookLM?`, b:`NotebookLM הוא כלי מחקר וכתיבה של Google שעובד מתוך המקורות שאתם מעלים: מסמכים, מצגות, קובצי PDF, אתרים, סרטונים או טקסט מודבק. התשובות מבוססות על המקורות ומלוות בציטוטים, כך שהמורה שולט/ת בבסיס הידע. הזמינות בחשבון הארגוני תלויה בהגדרות מנהל המערכת.`},
+    {t:`בניית מחברת`, b:`יוצרים מחברת חדשה לכל נושא (למשל "מערכת העיכול – ח'") ומוסיפים לה מקורות מאושרים: פרק מספר הלימוד, סיכומי שיעור או מאמר מאתר מהימן. אפשר לסמן אילו מקורות ישמשו בכל תשובה. ככל שהמקורות טובים יותר, כך התוצרים טובים יותר.`},
+    {t:`שאלות וציטוטים`, b:`שואלים בצ'אט, למשל: "מהם שלבי העיכול לפי המקורות?". התשובה כוללת מספרי ציטוט, ולחיצה על מספר מציגה את הקטע המדויק מהמקור. כך קל לבדוק את הדיוק. כשהמידע לא נמצא במקורות, הכלי אמור לציין זאת.`},
+    {t:`תוצרי Studio`, b:`בחלונית Studio מפיקים מדריך לימוד, מסמך תדריך, מפת חשיבה, כרטיסיות, בוחן וסקירת שמע (שיחה מוקלטת בסגנון פודקאסט על החומר). אפשר לכוון כל תוצר בהנחיה, למשל: "התמקד בשלבים 2–4, ברמה של כיתה ח'". התוצרים והשפות הזמינים מתעדכנים מעת לעת.`},
+    {t:`שימושים בכיתה`, b:`הכנה של המורה: היכרות מהירה עם חומר חדש. התאמה לשונות: מדריך לימוד מותאם. חזרה לקראת מבחן: כרטיסיות ובוחן. למידה בהאזנה: סקירת שמע לתלמידים שמתקשים בקריאה. אחרי שהמורה בודק/ת את התוצר, מפרסמים אותו ב-Classroom כחומר לימוד.`}
+  ],
+  scenario:`מורה לביולוגיה בכיתה י' מעלה למחברת את הפרק מספר הלימוד ואת המצגת שלה. היא מפיקה מדריך לימוד ובוחן, בודקת את הציטוטים ומתקנת שאלה אחת. לקראת המבחן היא מפרסמת את שניהם ב-Classroom.`,
+  tip:`פתחו מחברת לכל נושא, לא מחברת אחת לכל השנה. כשהמקורות ממוקדים, התשובות מדויקות יותר.`,
+  ethics:`לא מעלים למחברת מסמכים עם מידע אישי על תלמידים, כמו רשימות ציונים או דוחות. שומרים על זכויות יוצרים ומעלים רק חומרים שמותר להשתמש בהם לצורכי הוראה.`,
+  items:[
+    {type:'mc', q:`מה ההבדל המרכזי בין NotebookLM לבין צ'אט AI כללי?`, options:[`NotebookLM עונה מתוך המקורות שהמשתמש העלה ומצרף ציטוטים`,`NotebookLM לא משתמש בבינה מלאכותית`,`NotebookLM מיועד רק לתרגום`,`אין ביניהם הבדל`], answer:0, explain:`NotebookLM מתבסס על המקורות שבחרתם, וכל תשובה מלווה בציטוטים שאפשר לבדוק.`},
+    {type:'tf', q:`"לחיצה על מספר ציטוט בתשובה מציגה את הקטע המדויק מהמקור שעליו התשובה מבוססת."`, answer:true, explain:`כך בודקים במהירות שהתשובה נאמנה למקור.`},
+    {type:'match', q:`התאימו לכל צורך פדגוגי את התוצר המתאים ב-Studio.`, pairs:[[`חזרה מהירה על מושגים`,`כרטיסיות`],[`תלמיד/ה שלומד/ת טוב בהאזנה`,`סקירת שמע`],[`הצגת הקשרים בין רעיונות`,`מפת חשיבה`],[`תרגול לקראת מבחן`,`בוחן`]], explain:`כל תוצר מתאים לדרך למידה אחרת, וכך אפשר לגוון.`},
+    {type:'order', q:`סדרו את שלבי העבודה עם NotebookLM.`, steps:[`יצירת מחברת חדשה לנושא`,`הוספת מקורות מאושרים`,`שאילת שאלות ובדיקת הציטוטים`,`הפקת תוצר ב-Studio עם הנחיה ממוקדת`,`בדיקה ועריכה של התוצר`,`פרסום ב-Classroom כחומר לימוד`], explain:`הכול מתחיל ממקורות טובים ומסתיים בבדיקה של המורה לפני הפרסום.`},
+    {type:'scenario', ethics:true, q:`רכזת השכבה מציעה להעלות ל-NotebookLM את קובץ הציונים של כל השכבה, כדי "לנתח מגמות". מה התגובה המתאימה?`, options:[
+      {t:`להסכים, כי זה כלי של Google`, fb:`לא נכון. הקובץ מכיל מידע אישי מזהה על תלמידים.`},
+      {t:`להסביר שאסור להעלות מידע מזהה על תלמידים, ולהציע ניתוח של נתונים מצרפיים בכלים שאושרו לכך`, best:true},
+      {t:`להעלות רק את הציונים של חצי מהשכבה`, fb:`זו עדיין חשיפה של מידע אישי.`}
+    ], explain:`נכון. ציונים מזוהים הם מידע אישי. מנתחים אותם רק בכלים ובנהלים שהמוסד אישר לכך.`},
+    {type:'prompt', q:`בחרו את ההנחיה הטובה ביותר להפקת מדריך לימוד ב-NotebookLM.`, weak:`תעשה סיכום`, options:[`סכם את המקורות על מחזור המים במדריך לימוד לכיתה ד': מושגי מפתח עם הגדרה פשוטה, 5 שאלות חזרה ומשפט סיכום, בשפה פשוטה.`,`תעשה סיכום ארוך.`,`סכם כל מה שיש באינטרנט על מים.`], answer:0, explain:`ההנחיה מגדירה נושא, קהל, מבנה ורמת שפה, ונשענת על המקורות שבמחברת.`}
+  ]
+},
+{
+  title:`Google Meet ושיעור סינכרוני`, icon:`🎥`, color:`#D93025`, tint:`#FCE8E6`,
+  short:`ניהול שיעור מקוון בטוח ופעיל: בקרות מארח, חדרי עבודה, סקרים, נגישות ו-Gemini ב-Meet.`,
+  badge:{id:'b5', name:`מנחה מקוון/ת`, icon:`📡`},
+  goals:[`לפתוח ולנהל שיעור Meet מתוך Classroom בצורה בטוחה.`,`להשתמש בכלים אינטראקטיביים כדי לנהל שיעור פעיל.`,`להכיר את תכונות ה-AI ב-Meet ואת שיקולי הפרטיות שלהן.`],
+  cards:[
+    {t:`Meet מתוך Classroom`, b:`בהגדרות הכיתה יוצרים קישור Meet קבוע, והוא מוצג לתלמידים בראש עמוד הכיתה. כשהמורה פותח/ת את הפגישה מתוך הכיתה, הוא/היא המארח/ת, ותלמידים לא יכולים להיכנס לפני המורה. קישור קבוע חוסך שליחת קישור לפני כל שיעור.`},
+    {t:`שליטה ובטיחות`, b:`בבקרות המארח/ת קובעים מי יכול לשתף מסך, לכתוב בצ'אט ולהפעיל מיקרופון או מצלמה. אפשר להשתיק משתתפים, להסיר משתתף/ת ולאשר כניסה של משתתפים מחוץ לארגון. בסוף השיעור בוחרים "סיום השיחה לכולם", כדי שתלמידים לא יישארו בחדר בלי מורה.`},
+    {t:`כלים לשיעור פעיל`, b:`חדרי עבודה: עבודה בקבוצות קטנות. סקרים: בדיקת הבנה מהירה. שאלות ותשובות: שאלות מסודרות עם הצבעה. הרמת יד: ניהול תורות דיבור. אפשר גם לשתף מסך ולוח. חלק מהכלים, כמו חדרי עבודה, סקרים ושאלות ותשובות, זמינים רק בחלק מרישיונות Education.`},
+    {t:`נגישות ותיעוד`, b:`כתוביות בזמן אמת, וגם תרגום כתוביות בשפות הנתמכות, עוזרים לתלמידים כבדי שמיעה ולתלמידים שלומדים בשפה שנייה. הקלטה ודוח נוכחות זמינים לפי הרישיון. מקליטים רק בהתאם למדיניות בית הספר, ואחרי שמודיעים למשתתפים.`},
+    {t:`Gemini ב-Meet`, b:`בגרסאות שבהן התכונה זמינה, Gemini יכול לסכם פגישה ולשמור את הסיכום במסמך ("סיכום בשבילי"). זה שימושי למשל בישיבת צוות או בפגישה עם הורים. כמו בכל תוצר AI, המורה עובר/ת על הסיכום ומתקן/ת אותו. מפעילים את התכונה רק אחרי שמיידעים את המשתתפים.`}
+  ],
+  scenario:`מורה לחשבון בכיתה ו' מלמדת מרחוק. היא פותחת בסקר קצר שבודק ידע קודם, ואז מחלקת את התלמידים לחדרי עבודה כדי לפתור בעיה בזוגות. אחר כך היא מחזירה את כולם לדיון משותף, ובסוף מסיימת את השיחה לכולם.`,
+  tip:`בשיעור מקוון טוב מחליפים פעילות כל 7–10 דקות: הסבר, סקר, עבודה בחדרים, דיון וסיכום.`,
+  ethics:`לא מקליטים שיעור ולא מפעילים סיכום AI בלי ליידע את המשתתפים, ותמיד בהתאם למדיניות המוסד. לא מצלמים מסך שרואים בו את פני התלמידים, ולא משתפים צילומים כאלה.`,
+  items:[
+    {type:'mc', q:`איך מוודאים שתלמידים לא ייכנסו לפגישת Meet של הכיתה לפני המורה?`, options:[`שולחים להם את הקישור רק בתחילת השיעור`,`משתמשים בקישור Meet שנוצר מתוך Classroom, שבו המורה הוא/היא המארח/ת`,`מבקשים מהם לחכות`,`מכבים את המצלמה`], answer:1, explain:`בקישור Meet שנוצר מתוך Classroom, התלמידים לא יכולים להיכנס לפני המורה.`},
+    {type:'match', q:`התאימו לכל מטרה את הכלי המתאים ב-Meet.`, pairs:[[`בדיקת הבנה מהירה`,`סקר`],[`עבודה בקבוצות קטנות`,`חדרי עבודה`],[`נגישות לתלמידים כבדי שמיעה`,`כתוביות`],[`ניהול תורות דיבור`,`הרמת יד`]], explain:`כשמשתמשים בכלי הנכון, השיעור המקוון פעיל ונגיש יותר.`},
+    {type:'tf', ethics:true, q:`"מותר להקליט שיעור בלי להודיע לתלמידים, אם ההקלטה נועדה רק לשימוש של המורה."`, answer:false, explain:`מקליטים רק בהתאם למדיניות המוסד ואחרי שמיידעים את המשתתפים. זה גם תנאי לשמירה על פרטיותם.`},
+    {type:'scenario', q:`באמצע שיעור מקוון, משתתף לא מוכר משתף מסך עם תוכן לא הולם. מה עושים קודם?`, options:[
+      {t:`ממשיכים ללמד ומתעלמים`, fb:`לא נכון. חובה לפעול מיד כדי להגן על התלמידים.`},
+      {t:`מסירים את המשתתף, מגבילים בבקרות המארח/ת את שיתוף המסך למארח/ת בלבד ומדווחים להנהלה`, best:true},
+      {t:`מסיימים את השיעור ולא חוזרים יותר ל-Meet`, fb:`במקרה חירום אפשר לסיים את השיעור, אבל עדיף קודם להשתמש בבקרות. בכל מקרה מדווחים להנהלה.`}
+    ], explain:`נכון. בקרות המארח/ת נועדו בדיוק למצב כזה. הדיווח להנהלה מאפשר לטפל באירוע ולמנוע את הישנותו.`},
+    {type:'order', q:`סדרו את מהלך השיעור הפעיל ב-Meet.`, steps:[`פתיחת הפגישה מתוך Classroom`,`הגדרת בקרות המארח/ת`,`פתיחה בסקר לבדיקת ידע קודם`,`עבודה בחדרי עבודה`,`דיון מסכם עם כל הכיתה`,`סיום השיחה לכולם`], explain:`קודם דואגים לבטיחות, אחר כך מפעילים את התלמידים, ובסוף סוגרים את השיעור כמו שצריך.`},
+    {type:'mc', q:`מה נכון לגבי סיכום פגישה ש-Gemini הפיק?`, options:[`הוא תמיד מדויק ואין צורך לבדוק אותו`,`זו טיוטה שהמורה עובר/ת עליה, ומפעילים את התכונה רק אחרי שמיידעים את המשתתפים`,`הוא מחליף את הפרוטוקול הרשמי בלי בדיקה`,`אפשר לשלוח אותו להורים בלי לקרוא`], answer:1, explain:`סיכום AI הוא טיוטה. המורה בודק/ת אותו, ומפעילים את התכונה רק בשקיפות מול המשתתפים.`}
+  ]
+}
+];
+
+const EXAM = [
+  {q:`מה הדרך המומלצת להתאים מטלה לקבוצת תלמידים מסוימת ב-Classroom?`, options:[`לפרסם אותה לכל הכיתה ולבקש מהשאר להתעלם`,`להקצות אותה לתלמידים נבחרים בלבד`,`לשלוח אותה במייל פרטי`,`לפתוח כיתה נפרדת לכל תלמיד/ה`], answer:1, explain:`הקצאה לתלמידים נבחרים מאפשרת הוראה מותאמת בלי לחשוף את התלמידים.`},
+  {q:`איזה רכיב בפרומפט מגדיר את המבנה של התוצר, למשל "טבלה עם 4 עמודות"?`, options:[`תפקיד`,`הקשר`,`פורמט`,`קהל`], answer:2, explain:`רכיב הפורמט מגדיר איך התוצר ייראה.`},
+  {q:`NotebookLM מבסס את התשובות שלו על המקורות שהמשתמש העלה.`, tf:true, answer:0, explain:`זה הייחוד של NotebookLM: תשובות מתוך המקורות, עם ציטוטים.`},
+  {q:`מה התפקיד של "בנק התגובות" בכלי הבדיקה?`, options:[`לשמור הערות משוב לשימוש חוזר`,`לשמור ציונים של שנים קודמות`,`לשלוח הודעות להורים`,`לבדוק העתקות`], answer:0, explain:`בנק התגובות חוסך זמן ושומר על משוב עקבי.`},
+  {q:`באיזה חשבון מתחברים ל-Classroom לעבודה עם תלמידים?`, options:[`חשבון Gmail פרטי`,`חשבון החינוך הארגוני`,`החשבון של אחד ההורים`,`כל חשבון שנוח למורה`], answer:1, explain:`חשבון החינוך הארגוני מנוהל ומגן על נתוני התלמידים.`},
+  {q:`מותר להזין ל-Gemini רשימה של שמות תלמידים וציונים, כדי לקבל ניתוח הישגים.`, tf:true, answer:1, explain:`אסור להזין לכלי AI מידע מזהה על תלמידים.`},
+  {q:`איזה כלי ב-Meet מתאים לבדיקת הבנה מהירה במהלך השיעור?`, options:[`הקלטה`,`סקר`,`שינוי רקע`,`שיתוף מסך`], answer:1, explain:`סקר נותן תמונת מצב מיידית של הכיתה.`},
+  {q:`מה פירוש המונח "הזיה" (Hallucination) במודל שפה?`, options:[`תקלה בחיבור לאינטרנט`,`מידע שגוי או מומצא שמוצג כאילו הוא אמין`,`תמונה שהמודל יצר`,`תשובה ארוכה מדי`], answer:1, explain:`בגלל הזיות, המורה חייב/ת לבדוק כל תוצר AI.`},
+  {q:`לאיזה צורך מתאימה במיוחד סקירת שמע ב-NotebookLM?`, options:[`בדיקת נוכחות`,`למידה בהאזנה וחזרה על החומר`,`מתן ציונים`,`יצירת כיתה`], answer:1, explain:`סקירת שמע מתאימה לתלמידים שלומדים טוב בהאזנה, ולחזרה על החומר.`},
+  {q:`כשמשתפים מחוון עם התלמידים מראש, הם מבינים טוב יותר מה מצופה מהם.`, tf:true, answer:0, explain:`מחוון גלוי הופך את ההערכה לכלי למידה.`},
+  {q:`מה עושים בסוף שיעור ב-Meet?`, options:[`יוצאים מהפגישה ומשאירים את התלמידים בחדר`,`בוחרים "סיום השיחה לכולם"`,`מכבים את המצלמה בלבד`,`משתיקים את כולם`], answer:1, explain:`כך מוודאים שאף תלמיד/ה לא נשאר/ת בחדר בלי השגחה.`},
+  {q:`מה כדאי לעשות עם קוד הכיתה אחרי שכל התלמידים הצטרפו?`, options:[`לפרסם אותו ברשתות החברתיות`,`להשבית או לאפס אותו`,`לשלוח אותו לכל השכבה`,`שום דבר`], answer:1, explain:`השבתת הקוד מונעת הצטרפות לא מורשית.`},
+  {q:`איך הכי נכון לבקש מ-Gemini חומר שמתאים לשונות בכיתה?`, options:[`לבקש טקסט אחד קשה במיוחד`,`לבקש שלוש גרסאות: עם תמיכה, רגילה ומאתגרת`,`לצרף את רשימת התלמידים המתקשים`,`לבקש שהכלי יחליט לבד`], answer:1, explain:`שלוש גרסאות מאפשרות להקצות לכל קבוצה משימה ברמה המתאימה לה.`},
+  {q:`האפשרות "יצירת עותק לכל תלמיד" נותנת לכל תלמיד/ה מסמך אישי לעריכה.`, tf:true, answer:0, explain:`כל תלמיד/ה מקבל/ת עותק משלו/ה, שמחובר אוטומטית להגשה.`},
+  {q:`מי אחראי/ת לתוכן שנוצר בעזרת AI ומפורסם לתלמידים?`, options:[`חברת הטכנולוגיה`,`הכלי עצמו`,`המורה`,`התלמידים`], answer:2, explain:`המורה בודק/ת, מתקן/ת ומאשר/ת. האחריות הפדגוגית היא שלו/ה.`}
+];
+EXAM.forEach(e=>{ if(e.tf) e.options=[`נכון`,`לא נכון`]; });
+
+const PRIVACY_BADGE = {id:'priv', name:`שומר/ת הפרטיות`, icon:`🛡️`};
+const ALL_BADGES = UNITS.map(u=>u.badge).concat([PRIVACY_BADGE]);
+const TYPE_LABEL = {mc:`בחירה מרובה`, tf:`נכון / לא נכון`, match:`שיבוץ והתאמה`, order:`סידור שלבים`, scenario:`תרחיש החלטה`, prompt:`שפרו את הפרומפט`};
+const TYPE_ICON = {mc:`🔘`, tf:`⚖️`, match:`🧩`, order:`🔢`, scenario:`🧭`, prompt:`✍️`};
+UNITS.forEach((u,ui)=>u.items.forEach((it,ii)=>it.id=`${ui}-${ii}`));
+const ETHICS_IDS = [];
+UNITS.forEach(u=>u.items.forEach(it=>{ if(it.ethics) ETHICS_IDS.push(it.id); }));
+const PASS = 80;
+
+/* =====================================================================
+   מצב ושמירה
+   ===================================================================== */
+const KEY = 'teacher_digital_v1';
+function fresh(){ return {name:'', xp:0, streak:0, completed:[], badges:[], items:{}, examBest:null, examPassed:false, certId:null, certDate:null, flash:[], font:1}; }
+function load(){ try{ const r = localStorage.getItem(KEY); if(r) return Object.assign(fresh(), JSON.parse(r)); }catch(e){} return fresh(); }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+let S = load();
+
+/* =====================================================================
+   עזרים
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const main = $('#main');
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LETTERS = ['א','ב','ג','ד','ה','ו'];
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function levelName(xp=S.xp){ return xp>=240 ? `מומחה/ית דיגיטלי/ת` : xp>=120 ? `מתקדם/ת` : `מתחיל/ה`; }
+function levelIcon(xp=S.xp){ return xp>=240 ? '🏆' : xp>=120 ? '🚀' : '🌱'; }
+const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2800); }
+function announce(msg){ const l=$('#live'); l.textContent=''; setTimeout(()=>l.textContent=msg,50); }
+function confetti(){
+  if(reduced()) return;
+  const colors=['#1A73E8','#34A853','#F9AB00','#D93025','#8430CE','#E37400'];
+  for(let i=0;i<80;i++){
+    const d=document.createElement('div'); d.className='cf';
+    d.style.left=Math.random()*100+'vw'; d.style.background=colors[i%colors.length];
+    d.style.animationDuration=(1.8+Math.random()*1.6)+'s'; d.style.animationDelay=(Math.random()*.4)+'s';
+    d.style.transform=`rotate(${Math.random()*360}deg)`;
+    document.body.appendChild(d); setTimeout(()=>d.remove(),4000);
+  }
+}
+function applyFont(){ document.documentElement.style.fontSize=(S.font*100)+'%'; }
+function unitUnlocked(i){ return i===0 || S.completed.includes(i-1); }
+function allUnitsDone(){ return UNITS.every((_,i)=>S.completed.includes(i)); }
+function awardBadge(b){
+  if(S.badges.includes(b.id)) return false;
+  S.badges.push(b.id); save(); confetti(); toast(`${b.icon} קיבלת תג חדש: ${b.name}`); renderTop(); return true;
+}
+function checkPrivacyBadge(){
+  if(ETHICS_IDS.every(id=>S.items[id]==='first')) awardBadge(PRIVACY_BADGE);
+}
+let timerId = null;
+function clearTimers(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+function focusMain(){ main.focus({preventScroll:true}); window.scrollTo({top:0, behavior: reduced()?'auto':'smooth'}); }
+
+/* =====================================================================
+   סרגל עליון
+   ===================================================================== */
+function renderTop(){
+  const tb=$('#topbar');
+  if(!S.name){ tb.hidden=true; return; }
+  tb.hidden=false;
+  $('#stats').innerHTML = `
+    <span class="chip" title="נקודות ניסיון">⭐ <b>${S.xp}</b> XP</span>
+    <span class="chip hide-sm" title="רמה">${levelIcon()} ${levelName()}</span>
+    <span class="chip" title="תגים">🏅 <b>${S.badges.length}</b>/${ALL_BADGES.length}</span>
+    <span class="chip hide-sm" title="רצף תשובות נכונות">🔥 <b>${S.streak}</b></span>`;
+  const pct = Math.round(((S.completed.length + (S.examPassed?1:0)) / (UNITS.length+1))*100);
+  $('#progBar').style.width = pct+'%';
+  $('#progWrap').setAttribute('aria-valuenow', pct);
+  $('#progWrap').setAttribute('aria-valuetext', `${pct}% מהמסלול הושלם`);
+}
+
+/* =====================================================================
+   מסך פתיחה
+   ===================================================================== */
+function viewWelcome(){
+  main.innerHTML = `
+  <section class="hero fade-in">
+    <span class="type-tag" style="background:#fff">🎓 מסלול הכשרה למורים מתחילים</span>
+    <h1 style="margin-top:.8rem">הוראה דיגיטלית בסביבת ענן ובינה מלאכותית</h1>
+    <p class="lead">מסלול למידה מעשי, צעד אחר צעד: איך מנהלים כיתת Google Classroom בצורה מיטבית, ואיך משתמשים בכלי AI כדי ליצור תכנים פדגוגיים איכותיים בצורה בטוחה ואחראית.</p>
+    <div class="tools-row">
+      <span class="tool-pill">🏫 Google Classroom</span><span class="tool-pill">✨ Gemini</span><span class="tool-pill">📚 NotebookLM</span><span class="tool-pill">🎥 Google Meet</span>
+    </div>
+  </section>
+  <div class="grid g2" style="margin-top:1.25rem">
+    <section class="card fade-in" aria-labelledby="goalsT">
+      <h2 id="goalsT">בסוף המסלול תדעו:</h2>
+      <ul class="goals">
+        <li>להקים ולנהל כיתת Classroom: מטלות, מחוונים, משוב, ציונים והוראה מותאמת.</li>
+        <li>לכתוב פרומפטים מדויקים ל-Gemini ולבדוק את התוצרים בעין ביקורתית.</li>
+        <li>להפיק ב-NotebookLM חומרי למידה שמבוססים על מקורות מהימנים.</li>
+        <li>לנהל שיעור סינכרוני ב-Meet שהוא בטוח, פעיל ונגיש.</li>
+        <li>לפעול לפי עקרונות של פרטיות, אתיקה ואחריות פדגוגית.</li>
+      </ul>
+      <p class="muted" style="margin-top:1rem">5 יחידות · 30 תרגילים · אתגר בזק · מבחן מסכם · תעודת סיום</p>
+    </section>
+    <section class="card fade-in">
+      <h2>נעים להכיר!</h2>
+      <p class="muted">השם יופיע על תעודת הסיום שלכם.</p>
+      <form id="nameForm" novalidate>
+        <div class="field">
+          <label for="nameIn">שם מלא</label>
+          <input id="nameIn" type="text" autocomplete="name" maxlength="40" placeholder="לדוגמה: מיכל כהן" aria-describedby="nameErr" value="${esc(S.name)}">
+          <div class="err" id="nameErr" role="alert"></div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%;margin-top:.4rem">יוצאים לדרך ←</button>
+      </form>
+      <div class="notice"><span aria-hidden="true">🔒</span><span>ההתקדמות נשמרת רק בדפדפן שלכם. שום מידע לא נשלח לשום מקום.</span></div>
+    </section>
+  </div>`;
+  $('#nameForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const v=$('#nameIn').value.trim();
+    if(v.length<2){ $('#nameErr').textContent='נא להזין שם (לפחות 2 תווים).'; $('#nameIn').focus(); return; }
+    S.name=v; save(); renderTop(); viewHome();
+  });
+}
+
+/* =====================================================================
+   מפת הלמידה
+   ===================================================================== */
+function viewHome(){
+  clearTimers();
+  const done=allUnitsDone();
+  const unitsHtml = UNITS.map((u,i)=>{
+    const un=unitUnlocked(i), dn=S.completed.includes(i);
+    const st = dn ? `<span class="status st-done">✓ הושלם</span>` : un ? `<span class="status st-open">● פתוח ללמידה</span>` : `<span class="status st-lock">🔒 נעול</span>`;
+    return `<button class="unit-card" style="--uc:${u.color};--ut:${u.tint}" data-unit="${i}" ${un?'':'aria-disabled="true"'} aria-label="יחידה ${i+1}: ${esc(u.title)}. ${dn?'הושלמה':un?'פתוחה':'נעולה – השלימו את היחידה הקודמת'}">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span class="unit-ico" aria-hidden="true">${u.icon}</span><span class="unit-num">יחידה ${i+1}</span></div>
+      <h3>${u.title}</h3><p>${u.short}</p>${st}</button>`;
+  }).join('');
+  const best = S.flash.length ? Math.max(...S.flash.map(f=>f.score)) : null;
+  main.innerHTML = `
+  <section class="hero fade-in" style="padding:2rem">
+    <h1 style="margin:0 0 .3rem">שלום, ${esc(S.name)} 👋</h1>
+    <p class="lead" style="margin:0">${S.examPassed ? 'סיימתם את המסלול בהצלחה! התעודה שלכם מחכה לכם.' : done ? 'סיימתם את כל היחידות. עכשיו נשארו אתגר הבזק והמבחן המסכם.' : `המשיכו ביחידה ${Math.min(S.completed.length+1,UNITS.length)}. כל יחידה נפתחת אחרי שמסיימים את הקודמת לה.`}</p>
+  </section>
+  <div class="section-title"><h2>יחידות הלימוד</h2><span class="muted">${S.completed.length} מתוך ${UNITS.length} הושלמו</span></div>
+  <div class="grid g3 stagger">${unitsHtml}</div>
+  <div class="section-title"><h2>סיכום והסמכה</h2></div>
+  <div class="grid g3 stagger">
+    <div class="card feature"><span class="big" aria-hidden="true">⚡</span><h3>אתגר הבזק</h3><p class="muted">10 שאלות, 20 שניות לכל שאלה. נסו לשבור את השיא האישי שלכם.</p>
+      ${best!==null?`<p><b>השיא שלכם: ${best}/10</b></p>`:''}
+      ${done?`<button class="btn btn-primary" id="goFlash">לאתגר ←</button>`:`<p class="lock-note">🔒 ייפתח אחרי שתסיימו את כל היחידות</p>`}</div>
+    <div class="card feature"><span class="big" aria-hidden="true">📝</span><h3>מבחן מסכם</h3><p class="muted">15 שאלות מכל היחידות. ציון המעבר הוא ${PASS}.</p>
+      ${S.examBest!==null?`<p><b>הציון הגבוה שלכם: ${S.examBest}</b></p>`:''}
+      ${done?`<button class="btn btn-primary" id="goExam">${S.examBest!==null?'ניסיון נוסף':'למבחן'} ←</button>`:`<p class="lock-note">🔒 ייפתח אחרי שתסיימו את כל היחידות</p>`}</div>
+    <div class="card feature"><span class="big" aria-hidden="true">🎓</span><h3>תעודת סיום</h3><p class="muted">תעודה אישית עם השם וההישגים שלכם, שאפשר להדפיס או לשמור כ-PDF.</p>
+      ${S.examPassed?`<button class="btn btn-success" id="goCert">לתעודה שלי ←</button>`:`<p class="lock-note">🔒 תיפתח אחרי שתעברו את המבחן המסכם</p>`}</div>
+  </div>
+  <div class="section-title"><h2>התגים שלי</h2><span class="muted">${levelIcon()} רמה: ${levelName()} · ${S.xp} XP</span></div>
+  <div class="badges-shelf">${ALL_BADGES.map(b=>`<div class="badge ${S.badges.includes(b.id)?'':'locked'}" title="${esc(b.name)}"><span class="b-ico" aria-hidden="true">${b.icon}</span>${b.name}<span class="sr-only">${S.badges.includes(b.id)?'– הושג':'– טרם הושג'}</span></div>`).join('')}</div>
+  <p class="muted" style="font-size:.88rem;margin-top:.8rem">את התג "שומר/ת הפרטיות" מקבלים כשעונים נכון בניסיון הראשון על כל שאלות האתיקה והפרטיות.</p>
+  <div class="actions" style="justify-content:flex-start;margin-top:2rem"><button class="btn btn-text" id="resetBtn">איפוס ההתקדמות</button></div>`;
+  main.querySelectorAll('.unit-card').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.unit;
+    if(!unitUnlocked(i)){ toast('🔒 קודם צריך לסיים את היחידה הקודמת'); return; }
+    viewUnit(i);
+  }));
+  $('#goFlash')?.addEventListener('click',viewFlash);
+  $('#goExam')?.addEventListener('click',viewExam);
+  $('#goCert')?.addEventListener('click',viewCert);
+  $('#resetBtn').addEventListener('click',()=>{
+    if(confirm('לאפס את כל ההתקדמות? כל ה-XP, התגים והציונים יימחקו.')){
+      try{ localStorage.removeItem(KEY); }catch(e){}
+      const f=S.font; S=fresh(); S.font=f; save(); renderTop(); viewWelcome(); focusMain();
+    }
+  });
+  focusMain();
+}
+
+/* =====================================================================
+   יחידת לימוד
+   ===================================================================== */
+function viewUnit(ui){
+  clearTimers();
+  const u=UNITS[ui];
+  main.style.setProperty('--uc',u.color); main.style.setProperty('--ut',u.tint);
+  main.innerHTML = `
+  <nav class="crumbs no-print" aria-label="ניווט"><button class="btn btn-ghost" id="back">→ למפת הלמידה</button></nav>
+  <section class="unit-hero fade-in">
+    <span class="unit-ico" aria-hidden="true">${u.icon}</span>
+    <div class="unit-num">יחידה ${ui+1} מתוך ${UNITS.length}</div>
+    <h1>${u.title}</h1>
+    <h2 style="font-size:1.05rem;margin-top:1rem">🎯 מטרות היחידה: בסוף היחידה תדעו</h2>
+    <ul class="goals">${u.goals.map(g=>`<li>${g}</li>`).join('')}</ul>
+  </section>
+  <div class="grid g2 stagger" style="margin-top:1.25rem">
+    ${u.cards.map((c,i)=>`<article class="card learn-card"><h3><span class="n">${i+1}</span>${c.t}</h3><p style="margin:0">${c.b}</p></article>`).join('')}
+  </div>
+  <div class="grid" style="margin-top:1rem;gap:.8rem">
+    <div class="box box-scn"><span class="ico" aria-hidden="true">🏫</span><div><h3>איך זה נראה בכיתה</h3><p>${u.scenario}</p></div></div>
+    <div class="box box-tip"><span class="ico" aria-hidden="true">💡</span><div><h3>טיפ פדגוגי</h3><p>${u.tip}</p></div></div>
+    <div class="box box-eth"><span class="ico" aria-hidden="true">🛡️</span><div><h3>אתיקה ופרטיות</h3><p>${u.ethics}</p></div></div>
+  </div>
+  <div class="actions"><button class="btn btn-primary" id="startPr">מתחילים לתרגל (6 תרגילים) ←</button></div>`;
+  $('#back').addEventListener('click',viewHome);
+  $('#startPr').addEventListener('click',()=>startPractice(ui));
+  focusMain();
+}
+
+/* =====================================================================
+   מנוע תרגול
+   ===================================================================== */
+let P = null;
+function startPractice(ui){ P={unit:ui, idx:0, attempts:0, results:[], xpStart:S.xp}; renderItem(); }
+
+function renderItem(){
+  const u=UNITS[P.unit], it=u.items[P.idx];
+  P.attempts=0; P.finished=false;
+  const dots = u.items.map((_,i)=>`<span class="${i<P.idx?(P.results[i]?'done':'fail'):i===P.idx?'cur':''}"></span>`).join('');
+  main.innerHTML = `
+  <nav class="crumbs"><button class="btn btn-ghost" id="back">→ חזרה ליחידה</button></nav>
+  <section class="card fade-in" aria-labelledby="qT">
+    <div class="practice-head">
+      <span class="type-tag">${TYPE_ICON[it.type]} ${TYPE_LABEL[it.type]}${it.ethics?' · 🛡️ אתיקה ופרטיות':''}</span>
+      <div style="display:flex;align-items:center;gap:.7rem"><span class="muted" style="font-size:.9rem">תרגיל ${P.idx+1} מתוך ${u.items.length}</span><div class="dots" aria-hidden="true">${dots}</div></div>
+    </div>
+    <div id="item"></div>
+    <div class="feedback" id="fb" aria-live="polite"></div>
+    <div class="actions" id="nextWrap" hidden><button class="btn btn-primary" id="nextBtn">${P.idx<u.items.length-1?'לתרגיל הבא ←':'לסיכום היחידה ←'}</button></div>
+  </section>`;
+  $('#back').addEventListener('click',()=>viewUnit(P.unit));
+  $('#nextBtn').addEventListener('click',()=>{ P.idx++; if(P.idx<u.items.length) renderItem(); else viewSummary(); });
+  RENDER[it.type](it, $('#item'));
+  focusMain();
+}
+
+function lockItem(){ $('#item').querySelectorAll('button,li').forEach(b=>{ if(b.tagName==='BUTTON') b.disabled=true; b.draggable=false; }); }
+
+function submit(correct, opt={}){
+  if(P.finished) return;
+  const it=UNITS[P.unit].items[P.idx], fb=$('#fb');
+  const isNew = !(it.id in S.items);
+  if(correct){
+    let pts=0, bonus='';
+    if(isNew){ pts = P.attempts===0 ? 10 : 5; S.xp+=pts; S.items[it.id] = P.attempts===0 ? 'first' : 'second'; }
+    if(P.attempts===0){ S.streak++; if(isNew && S.streak%3===0){ S.xp+=5; bonus=`<span class="xp-pop">🔥 בונוס רצף +5</span>`; } }
+    P.results[P.idx]=true; P.finished=true;
+    fb.className='feedback show good';
+    fb.innerHTML=`<div class="fb-title">✔️ נכון!${pts?`<span class="xp-pop">+${pts} XP</span>`:''}${bonus}</div><div>${it.explain}</div>${!isNew?'<div class="muted" style="font-size:.88rem;margin-top:.3rem">כבר תרגלתם את התרגיל הזה, ולכן לא נוספו נקודות.</div>':''}`;
+    announce('תשובה נכונה. '+it.explain.replace(/<[^>]+>/g,''));
+    lockItem(); $('#nextWrap').hidden=false; save(); renderTop();
+    if(it.ethics) checkPrivacyBadge();
+    $('#nextBtn').focus({preventScroll:true});
+  } else {
+    P.attempts++; S.streak=0;
+    if(P.attempts<2){
+      fb.className='feedback show badf';
+      fb.innerHTML=`<div class="fb-title">✖️ לא מדויק. נסו שוב (בניסיון השני מקבלים 5 XP).</div>${opt.fb?`<div>${opt.fb}</div>`:''}`;
+      announce('לא מדויק. '+(opt.fb||'')+' נסו שוב.');
+    } else {
+      if(isNew) S.items[it.id]='fail';
+      P.results[P.idx]=false; P.finished=true;
+      opt.reveal && opt.reveal();
+      fb.className='feedback show badf';
+      fb.innerHTML=`<div class="fb-title">✖️ הפעם זה לא הצליח. התשובה הנכונה מסומנת.</div>${opt.fb?`<div>${opt.fb}</div>`:''}<div style="margin-top:.3rem">${it.explain}</div>`;
+      announce('התשובה הנכונה מסומנת. '+it.explain);
+      lockItem(); $('#nextWrap').hidden=false; $('#nextBtn').focus({preventScroll:true});
+    }
+    save(); renderTop();
+  }
+}
+
+/* --- בחירה מרובה / נכון-לא נכון / פרומפט --- */
+function renderChoice(el, it, options, answer, extraHtml='', cls=''){
+  el.innerHTML = `${extraHtml}<p class="q" id="qT">${it.q}</p><div class="opts" role="group" aria-labelledby="qT">${options.map((o,i)=>`<button class="opt ${cls}" data-i="${i}"><span class="let" aria-hidden="true">${LETTERS[i]}</span><span>${o}</span></button>`).join('')}</div>`;
+  const btns=[...el.querySelectorAll('.opt')];
+  const reveal=()=>btns[answer].classList.add('ok');
+  btns.forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.i;
+    if(i===answer){ b.classList.add('ok'); submit(true); }
+    else { b.classList.add('bad'); b.disabled=true; submit(false,{reveal}); }
+  }));
+}
+const RENDER = {
+  mc:(it,el)=>renderChoice(el,it,it.options,it.answer),
+  tf:(it,el)=>renderChoice(el,it,['נכון','לא נכון'],it.answer?0:1),
+  prompt:(it,el)=>renderChoice(el,it,it.options,it.answer,`<div class="weak"><small>פרומפט חלש:</small>"${it.weak}"</div>`,'prompt-opt'),
+  scenario:(it,el)=>{
+    el.innerHTML=`<p class="q" id="qT">${it.q}</p><div class="opts" role="group" aria-labelledby="qT">${it.options.map((o,i)=>`<button class="opt" data-i="${i}"><span class="let" aria-hidden="true">${LETTERS[i]}</span><span>${o.t}</span></button>`).join('')}</div>`;
+    const btns=[...el.querySelectorAll('.opt')];
+    const bi=it.options.findIndex(o=>o.best);
+    const reveal=()=>btns[bi].classList.add('ok');
+    btns.forEach(b=>b.addEventListener('click',()=>{
+      const o=it.options[+b.dataset.i];
+      if(o.best){ b.classList.add('ok'); submit(true); }
+      else { b.classList.add('bad'); b.disabled=true; submit(false,{fb:o.fb, reveal}); }
+    }));
+  },
+  match:(it,el)=>{
+    const n=it.pairs.length;
+    let assign=Array(n).fill(null), sel=null, marks=null;
+    const order=shuffle([...Array(n).keys()]);
+    function draw(focusKey){
+      const used=new Set(assign.filter(v=>v!==null));
+      el.innerHTML=`<p class="q" id="qT">${it.q}</p>
+      <p class="hint">גררו כל תיאור למקום המתאים, או לחצו על תיאור ואחר כך על המקום. לחיצה על מקום מלא מחזירה את התיאור לרשימה.</p>
+      <div class="match">
+        <div class="m-rows">${it.pairs.map((p,t)=>`<div class="m-row"><span class="m-term" id="term${t}">${p[0]}</span>
+          <button class="slot ${assign[t]!==null?'filled':''} ${marks?(marks[t]?'ok':'bad'):''}" data-t="${t}" data-k="s${t}" aria-describedby="term${t}" aria-label="מקום עבור ${esc(p[0])}: ${assign[t]!==null?esc(it.pairs[assign[t]][1]):'ריק'}">${assign[t]!==null?it.pairs[assign[t]][1]:'<span class="ph">שחררו כאן תיאור</span>'}</button></div>`).join('')}</div>
+        <div class="bank" aria-label="תיאורים לשיבוץ"><span class="bank-title">תיאורים לשיבוץ</span>${order.filter(d=>!used.has(d)).map(d=>`<button class="chip-btn" draggable="true" data-d="${d}" data-k="d${d}" aria-pressed="${sel===d}">${it.pairs[d][1]}</button>`).join('') || '<span class="muted" style="font-size:.9rem">כל התיאורים שובצו ✓</span>'}</div>
+      </div>
+      <div class="actions"><button class="btn btn-primary" id="chk" ${assign.includes(null)?'disabled':''}>בדיקה</button></div>`;
+      el.querySelectorAll('.chip-btn').forEach(c=>{
+        c.addEventListener('click',()=>{ const d=+c.dataset.d; sel = sel===d?null:d; draw('d'+d); });
+        c.addEventListener('dragstart',e=>{ e.dataTransfer.setData('text/plain',c.dataset.d); sel=+c.dataset.d; });
+      });
+      el.querySelectorAll('.slot').forEach(s=>{
+        const t=+s.dataset.t;
+        s.addEventListener('click',()=>{
+          if(P.finished) return;
+          marks=null;
+          if(sel!==null){ assign[t]=sel; sel=null; }
+          else if(assign[t]!==null){ assign[t]=null; }
+          else { toast('בחרו קודם תיאור מהרשימה'); return; }
+          draw('s'+t);
+        });
+        s.addEventListener('dragover',e=>{ e.preventDefault(); s.classList.add('over'); });
+        s.addEventListener('dragleave',()=>s.classList.remove('over'));
+        s.addEventListener('drop',e=>{ e.preventDefault(); const d=+e.dataTransfer.getData('text/plain'); if(isNaN(d)) return; marks=null; assign[t]=d; sel=null; draw('s'+t); });
+      });
+      const chk=el.querySelector('#chk');
+      chk.addEventListener('click',()=>{
+        marks=assign.map((d,t)=>d===t);
+        const ok=marks.every(Boolean);
+        draw();
+        submit(ok,{fb: ok?'':`מקומות שסומנו באדום שובצו לא נכון.`, reveal:()=>{ assign=[...Array(n).keys()]; marks=Array(n).fill(true); draw(); }});
+        if(P.finished) lockItem();
+      });
+      if(focusKey){ const f=el.querySelector(`[data-k="${focusKey}"]`); f && f.focus({preventScroll:true}); }
+    }
+    draw();
+  },
+  order:(it,el)=>{
+    const n=it.steps.length;
+    let arr; do{ arr=shuffle([...Array(n).keys()]); }while(arr.every((v,i)=>v===i));
+    let marks=null, dragFrom=null;
+    function draw(focusSel){
+      el.innerHTML=`<p class="q" id="qT">${it.q}</p>
+      <p class="hint">גררו את השלבים, או השתמשו בחיצים ▲▼ כדי להזיז שלב למעלה או למטה.</p>
+      <ol class="order" aria-labelledby="qT">${arr.map((s,i)=>`<li draggable="true" data-i="${i}" class="${marks?(marks[i]?'ok':'bad'):''}"><span class="num" aria-hidden="true">${i+1}</span><span class="txt">${it.steps[s]}</span>
+        <span class="mv"><button data-up="${i}" aria-label="הזזת '${esc(it.steps[s])}' למעלה" ${i===0?'disabled':''}>▲</button><button data-dn="${i}" aria-label="הזזת '${esc(it.steps[s])}' למטה" ${i===n-1?'disabled':''}>▼</button></span></li>`).join('')}</ol>
+      <div class="actions"><button class="btn btn-primary" id="chk">בדיקה</button></div>`;
+      const swap=(a,b)=>{ [arr[a],arr[b]]=[arr[b],arr[a]]; marks=null; };
+      el.querySelectorAll('[data-up]').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.up; swap(i,i-1); draw(i-1>0?`[data-up="${i-1}"]`:`[data-dn="${i-1}"]`); }));
+      el.querySelectorAll('[data-dn]').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.dn; swap(i,i+1); draw(i+1<n-1?`[data-dn="${i+1}"]`:`[data-up="${i+1}"]`); }));
+      el.querySelectorAll('.order li').forEach(li=>{
+        li.addEventListener('dragstart',()=>{ dragFrom=+li.dataset.i; li.classList.add('dragging'); });
+        li.addEventListener('dragend',()=>li.classList.remove('dragging'));
+        li.addEventListener('dragover',e=>e.preventDefault());
+        li.addEventListener('drop',e=>{ e.preventDefault(); const to=+li.dataset.i; if(dragFrom===null||dragFrom===to) return; const [m]=arr.splice(dragFrom,1); arr.splice(to,0,m); marks=null; dragFrom=null; draw(); });
+      });
+      el.querySelector('#chk').addEventListener('click',()=>{
+        marks=arr.map((v,i)=>v===i);
+        const ok=marks.every(Boolean);
+        draw();
+        submit(ok,{fb: ok?'':'שלבים שמסומנים באדום לא נמצאים במקום הנכון.', reveal:()=>{ arr=[...Array(n).keys()]; marks=Array(n).fill(true); draw(); }});
+        if(P.finished) lockItem();
+      });
+      if(focusSel){ const f=el.querySelector(focusSel); f && f.focus({preventScroll:true}); }
+    }
+    draw();
+  }
+};
+
+/* =====================================================================
+   סיכום יחידה
+   ===================================================================== */
+function viewSummary(){
+  const ui=P.unit, u=UNITS[ui];
+  const correct=P.results.filter(Boolean).length;
+  const gained=S.xp-P.xpStart;
+  const first = !S.completed.includes(ui);
+  if(first){ S.completed.push(ui); save(); }
+  main.innerHTML=`
+  <section class="card center fade-in" style="max-width:640px;margin:0 auto">
+    <div class="big-ico" aria-hidden="true">${u.badge.icon}</div>
+    <h1>כל הכבוד! סיימתם את יחידה ${ui+1}</h1>
+    <p class="lead muted">${u.title}</p>
+    <div class="grid g3" style="margin:1.2rem 0;grid-template-columns:repeat(3,1fr)">
+      <div class="card" style="padding:1rem"><b style="font-size:1.6rem">${correct}/${u.items.length}</b><div class="muted" style="font-size:.88rem">תשובות נכונות</div></div>
+      <div class="card" style="padding:1rem"><b style="font-size:1.6rem">+${gained}</b><div class="muted" style="font-size:.88rem">XP ביחידה</div></div>
+      <div class="card" style="padding:1rem"><b style="font-size:1.6rem">${levelIcon()}</b><div class="muted" style="font-size:.88rem">${levelName()}</div></div>
+    </div>
+    <p>התג שקיבלתם: <b>${u.badge.icon} ${u.badge.name}</b></p>
+    <div class="actions" style="justify-content:center">
+      ${ui<UNITS.length-1?`<button class="btn btn-primary" id="nextUnit">ליחידה ${ui+2} ←</button>`:`<button class="btn btn-primary" id="toHome">לאתגר ולמבחן המסכם ←</button>`}
+      <button class="btn btn-ghost" id="home2">למפת הלמידה</button>
+    </div>
+  </section>`;
+  renderTop();
+  awardBadge(u.badge);
+  $('#nextUnit')?.addEventListener('click',()=>viewUnit(ui+1));
+  $('#toHome')?.addEventListener('click',viewHome);
+  $('#home2').addEventListener('click',viewHome);
+  focusMain();
+}
+
+/* =====================================================================
+   מבחן מסכם
+   ===================================================================== */
+function viewExam(){
+  clearTimers();
+  const E={qs:shuffle(EXAM), i:0, ans:[]};
+  function q(){
+    const it=E.qs[E.i];
+    main.innerHTML=`
+    <nav class="crumbs"><button class="btn btn-ghost" id="back">→ יציאה מהמבחן</button></nav>
+    <section class="card fade-in" style="max-width:760px;margin:0 auto">
+      <div class="practice-head"><span class="type-tag" style="background:var(--primary-l)">📝 מבחן מסכם</span><span class="muted">שאלה ${E.i+1} מתוך ${E.qs.length}</span></div>
+      <div class="timer" aria-hidden="true"><span style="width:${(E.i/E.qs.length)*100}%;background:var(--primary)"></span></div>
+      <p class="q" id="qT">${it.q}</p>
+      <div class="opts" role="group" aria-labelledby="qT">${it.options.map((o,i)=>`<button class="opt" data-i="${i}"><span class="let" aria-hidden="true">${LETTERS[i]}</span><span>${o}</span></button>`).join('')}</div>
+      <p class="muted" style="font-size:.88rem;margin-top:1rem">במבחן אין משוב מיידי. בסוף תקבלו ציון וסקירה של הטעויות.</p>
+    </section>`;
+    $('#back').addEventListener('click',()=>{ if(confirm('לצאת מהמבחן? התשובות שלכם לא יישמרו.')) viewHome(); });
+    main.querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{
+      E.ans.push(+b.dataset.i); E.i++;
+      if(E.i<E.qs.length) q(); else result();
+    }));
+    focusMain();
+  }
+  function result(){
+    const correct=E.qs.filter((it,i)=>E.ans[i]===it.answer).length;
+    const score=Math.round(correct/E.qs.length*100);
+    const passed=score>=PASS;
+    S.examBest=Math.max(S.examBest??0,score);
+    let newly=false;
+    if(passed && !S.examPassed){ S.examPassed=true; newly=true; S.certDate=new Date().toISOString();
+      S.certId='DT-'+new Date().getFullYear()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(); }
+    save(); renderTop();
+    const wrong=E.qs.map((it,i)=>({it,a:E.ans[i]})).filter(x=>x.a!==x.it.answer);
+    main.innerHTML=`
+    <section class="card center fade-in" style="max-width:760px;margin:0 auto">
+      <div class="score-ring" style="--p:${score};--ring:${passed?'#34A853':'#D93025'}" role="img" aria-label="ציון ${score}"><div>${score}</div></div>
+      <h1>${passed?'עברתם את המבחן! 🎉':'עוד קצת ותגיעו לשם'}</h1>
+      <p class="muted">${correct} תשובות נכונות מתוך ${E.qs.length}. ציון המעבר הוא ${PASS}.${passed?'':' מומלץ לחזור על היחידות הרלוונטיות ולנסות שוב.'}</p>
+      ${wrong.length?`<h2 style="font-size:1.15rem;text-align:start;margin-top:1.4rem">סקירת טעויות</h2><ul class="review">${wrong.map(x=>`<li><b>${x.it.q}</b><div style="margin-top:.3rem">התשובה שלכם: <span style="color:var(--error)">${x.it.options[x.a]}</span></div><div>התשובה הנכונה: <span style="color:var(--success-t);font-weight:700">${x.it.options[x.it.answer]}</span></div><div class="muted" style="font-size:.92rem;margin-top:.2rem">${x.it.explain}</div></li>`).join('')}</ul>`:'<p>ענית נכון על כל השאלות. מושלם! 🌟</p>'}
+      <div class="actions" style="justify-content:center">
+        ${S.examPassed?`<button class="btn btn-success" id="goCert">לתעודת הסיום 🎓</button>`:''}
+        <button class="btn btn-ghost" id="retry">ניסיון נוסף</button>
+        <button class="btn btn-ghost" id="home3">למפת הלמידה</button>
+      </div>
+    </section>`;
+    if(passed) confetti();
+    if(newly) toast('🎓 התעודה שלכם מוכנה!');
+    $('#goCert')?.addEventListener('click',viewCert);
+    $('#retry').addEventListener('click',viewExam);
+    $('#home3').addEventListener('click',viewHome);
+    focusMain();
+  }
+  q();
+}
+
+/* =====================================================================
+   אתגר הבזק
+   ===================================================================== */
+function flashPool(){
+  const pool=EXAM.map(e=>({q:e.q,options:e.options,answer:e.answer}));
+  UNITS.forEach(u=>u.items.forEach(it=>{
+    if(it.type==='mc') pool.push({q:it.q,options:it.options,answer:it.answer});
+    if(it.type==='tf') pool.push({q:it.q,options:['נכון','לא נכון'],answer:it.answer?0:1});
+  }));
+  return shuffle(pool).slice(0,10);
+}
+function viewFlash(){
+  clearTimers();
+  main.innerHTML=`
+  <nav class="crumbs"><button class="btn btn-ghost" id="back">→ למפת הלמידה</button></nav>
+  <section class="card center fade-in" style="max-width:640px;margin:0 auto">
+    <div class="big-ico" aria-hidden="true">⚡</div>
+    <h1>אתגר הבזק</h1>
+    <p class="muted">10 שאלות מכל היחידות, ו-20 שניות לכל שאלה. כל תשובה נכונה שווה נקודה. נסו לשבור את השיא שלכם!</p>
+    ${S.flash.length?`<h2 style="font-size:1.05rem;margin-top:1.2rem">🏆 לוח השיאים שלי</h2><ol class="hs">${S.flash.slice(0,5).map((f,i)=>`<li><span>${['🥇','🥈','🥉','4.','5.'][i]} ${new Date(f.date).toLocaleDateString('he-IL')}</span><b>${f.score}/10</b></li>`).join('')}</ol>`:''}
+    <div class="actions" style="justify-content:center"><button class="btn btn-primary" id="go">התחלה ←</button></div>
+  </section>`;
+  $('#back').addEventListener('click',viewHome);
+  $('#go').addEventListener('click',()=>run());
+  focusMain();
+  function run(){
+    const F={qs:flashPool(), i:0, score:0};
+    function q(){
+      clearTimers();
+      const it=F.qs[F.i]; let left=20, locked=false;
+      main.innerHTML=`
+      <section class="card fade-in" style="max-width:760px;margin:0 auto">
+        <div class="flash-top"><span>⚡ שאלה ${F.i+1}/10</span><span>ניקוד: ${F.score}</span><span id="secs" aria-live="off">20 שנ'</span></div>
+        <div class="timer" id="tm"><span style="width:100%"></span></div>
+        <p class="q" id="qT">${it.q}</p>
+        <div class="opts" role="group" aria-labelledby="qT">${it.options.map((o,i)=>`<button class="opt" data-i="${i}"><span class="let" aria-hidden="true">${LETTERS[i]}</span><span>${o}</span></button>`).join('')}</div>
+        <div class="feedback" id="fb" aria-live="polite"></div>
+      </section>`;
+      const btns=[...main.querySelectorAll('.opt')];
+      const bar=main.querySelector('#tm span'), tm=main.querySelector('#tm'), secs=main.querySelector('#secs');
+      const t0=Date.now();
+      function finish(i){
+        if(locked) return; locked=true; clearTimers();
+        btns.forEach(b=>b.disabled=true);
+        btns[it.answer].classList.add('ok');
+        const fb=main.querySelector('#fb');
+        if(i===it.answer){ F.score++; fb.className='feedback show good'; fb.innerHTML='<div class="fb-title">✔️ נכון!</div>'; }
+        else { if(i!==null) btns[i].classList.add('bad'); fb.className='feedback show badf'; fb.innerHTML=`<div class="fb-title">${i===null?'⏰ נגמר הזמן!':'✖️ לא נכון'}</div>`; }
+        announce(i===it.answer?'נכון':'לא נכון. התשובה הנכונה: '+it.options[it.answer]);
+        setTimeout(()=>{ F.i++; if(F.i<F.qs.length) q(); else end(); }, 1300);
+      }
+      btns.forEach(b=>b.addEventListener('click',()=>finish(+b.dataset.i)));
+      timerId=setInterval(()=>{
+        left=Math.max(0,20-(Date.now()-t0)/1000);
+        bar.style.width=(left/20*100)+'%';
+        secs.textContent=Math.ceil(left)+" שנ'";
+        tm.classList.toggle('low',left<=5);
+        if(left<=0) finish(null);
+      },100);
+      btns[0].focus({preventScroll:true});
+    }
+    function end(){
+      clearTimers();
+      const prevBest=S.flash.length?Math.max(...S.flash.map(f=>f.score)):-1;
+      S.flash.push({score:F.score,date:new Date().toISOString()});
+      S.flash.sort((a,b)=>b.score-a.score||new Date(b.date)-new Date(a.date));
+      S.flash=S.flash.slice(0,5); save();
+      const record=F.score>prevBest;
+      if(record) confetti();
+      main.innerHTML=`
+      <section class="card center fade-in" style="max-width:640px;margin:0 auto">
+        <div class="score-ring" style="--p:${F.score*10};--ring:#F9AB00" role="img" aria-label="ניקוד ${F.score} מתוך 10"><div>${F.score}/10</div></div>
+        <h1>${record?'🏆 שיא אישי חדש!':'כל הכבוד על ההשתתפות!'}</h1>
+        <p class="muted">${F.score>=8?'שליטה מצוינת בחומר.':F.score>=5?'בסיס טוב. נסו שוב כדי לשפר את השיא.':'כדאי לחזור על היחידות ולנסות שוב.'}</p>
+        <div class="actions" style="justify-content:center"><button class="btn btn-primary" id="again">שוב! ⚡</button><button class="btn btn-ghost" id="home4">למפת הלמידה</button></div>
+      </section>`;
+      $('#again').addEventListener('click',run);
+      $('#home4').addEventListener('click',viewHome);
+      focusMain();
+    }
+    q();
+  }
+}
+
+/* =====================================================================
+   תעודת סיום
+   ===================================================================== */
+function viewCert(){
+  clearTimers();
+  if(!S.examPassed){ viewHome(); return; }
+  const earned=ALL_BADGES.filter(b=>S.badges.includes(b.id));
+  const date=new Date(S.certDate||Date.now()).toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'});
+  main.innerHTML=`
+  <nav class="crumbs no-print"><button class="btn btn-ghost" id="back">→ למפת הלמידה</button><button class="btn btn-primary" id="print">🖨️ הדפסה / שמירה כ-PDF</button></nav>
+  <div class="cert-wrap fade-in">
+    <article class="cert" aria-label="תעודת סיום">
+      <span class="corner c1"></span><span class="corner c2"></span>
+      <div class="cert-seal" aria-hidden="true">🎓</div>
+      <div class="cert-kicker">תעודת סיום</div>
+      <h1>הוראה דיגיטלית בסביבת ענן ובינה מלאכותית</h1>
+      <p class="to">התעודה מוענקת ל</p>
+      <div class="name">${esc(S.name)}</div>
+      <p class="desc">על השלמת מסלול הלמידה בנושא ניהול כיתה ב-Google Classroom ושימוש פדגוגי, בטוח ואחראי, ב-Gemini, ב-NotebookLM וב-Google Meet.</p>
+      <div class="cert-stats">
+        <div><b>${S.examBest}</b><span>ציון במבחן המסכם</span></div>
+        <div><b>${S.xp}</b><span>נקודות XP</span></div>
+        <div><b>${levelName()}</b><span>רמה</span></div>
+        <div><b>${earned.length}/${ALL_BADGES.length}</b><span>תגים</span></div>
+      </div>
+      <div class="cert-units">${UNITS.map(u=>`<span>✓ ${u.title}</span>`).join('')}</div>
+      <div class="cert-badges" aria-label="תגים שהושגו: ${esc(earned.map(b=>b.name).join(', '))}">${earned.map(b=>`<span title="${esc(b.name)}">${b.icon}</span>`).join('')}</div>
+      <div class="cert-foot">
+        <div class="sig">תאריך: ${date}</div>
+        <div>מספר תעודה: <b>${S.certId}</b></div>
+        <div class="sig">מסלול הכשרה עצמית למורים</div>
+      </div>
+    </article>
+  </div>
+  <p class="muted center no-print" style="font-size:.88rem;margin-top:1rem">טיפ: בחלון ההדפסה בחרו "שמירה כ-PDF", בכיוון "לרוחב", והפעילו "גרפיקת רקע".</p>`;
+  $('#back').addEventListener('click',viewHome);
+  $('#print').addEventListener('click',()=>window.print());
+  focusMain();
+}
+
+/* =====================================================================
+   אתחול
+   ===================================================================== */
+$('#brandBtn').addEventListener('click',viewHome);
+$('#fontUp').addEventListener('click',()=>{ S.font=Math.min(1.3,+(S.font+.1).toFixed(1)); applyFont(); save(); });
+$('#fontDown').addEventListener('click',()=>{ S.font=Math.max(.9,+(S.font-.1).toFixed(1)); applyFont(); save(); });
+applyFont(); renderTop();
+if(S.name) viewHome(); else viewWelcome();
+</script>
+</body>
+</html>
